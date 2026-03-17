@@ -200,10 +200,13 @@ else:
         "style": {"backgroundColor": "#1e293b", "color": "white", "fontSize": "13px", "padding": "8px"}
     }
 
-    st.pydeck_chart(pdk.Deck(
+    st.pydeck_chart(
+    pdk.Deck(
         layers=[layer],
         initial_view_state=view,
         tooltip=tooltip,
-        map_style="https://basemaps.cartocdn.com/gl/voyager-gl-style/style.json",
-        use_container_width=True, 
-    ))
+        map_style="https://basemaps.cartocdn.com/gl/positron-gl-style/style.json",
+    ),
+    use_container_width=True,
+    height=700
+)
