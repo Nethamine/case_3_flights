@@ -1,19 +1,20 @@
 import requests
 import pandas as pd
+import time
 
 
-print("===== INSTELLINGEN =====")
+# ===== INSTELLINGEN =====
 
 API_KEY = "216e21a9-472f-4d17-9b9e-0c2b1e81053a"
 COUNTRY = "NL"
-MAX_RESULTS = None
+MAX_RESULTS = 10000
 BATCH_SIZE = 100
-OUTPUT_FILE = "open_charge_map_NL.csv"
+OUTPUT_FILE = "open_charge_map_full.csv"
 
 print("Max datapunten:", MAX_RESULTS)
 
 
-print("===== DATA OPHALEN =====")
+# ===== DATA OPHALEN =====
 
 all_data = []
 offset = 0
@@ -28,14 +29,26 @@ while True:
     else:
         limit = BATCH_SIZE
 
-    url = f"https://api.openchargemap.io/v3/poi/?output=json&countrycode={COUNTRY}&maxresults={limit}&offset={offset}&compact=true&verbose=false&key={API_KEY}"
+    url = f"https://api.openchargemap.io/v3/poi/?output=json&countrycode={COUNTRY}&maxresults={limit}&offset={offset}&key={API_KEY}"
 
     print("Request:", url)
 
-    response = requests.get(url)
+    while True:
+
+        response = requests.get(url)
+
+        if response.status_code == 429:
+            print("Rate limit bereikt, wachten 2 minuten...")
+            time.sleep(120)
+            continue
+
+        if response.status_code != 200:
+            print("Fout:", response.status_code)
+            break
+
+        break
 
     if response.status_code != 200:
-        print("Fout:", response.status_code)
         break
 
     data = response.json()
@@ -50,36 +63,33 @@ while True:
     offset += limit
 
 
-print("===== DATA STRUCTUREREN =====")
+# ===== JSON NORMALIZEN =====
 
-records = []
+df = pd.json_normalize(all_data)
 
-for station in all_data:
-
-    record = {
-        "ID": station.get("ID"),
-        "Name": station.get("AddressInfo", {}).get("Title"),
-        "Address": station.get("AddressInfo", {}).get("AddressLine1"),
-        "City": station.get("AddressInfo", {}).get("Town"),
-        "Latitude": station.get("AddressInfo", {}).get("Latitude"),
-        "Longitude": station.get("AddressInfo", {}).get("Longitude"),
-        "NumberOfPoints": station.get("NumberOfPoints"),
-        "Operator": station.get("OperatorInfo", {}).get("Title")
-    }
-
-    records.append(record)
+print("Aantal kolommen:", len(df.columns))
+print("Aantal rijen:", len(df))
 
 
-print("===== DATAFRAME MAKEN =====")
+# ===== CONNECTIONS NORMALIZEN =====
 
-df = pd.DataFrame(records)
+connections = pd.json_normalize(
+    all_data,
+    record_path="Connections",
+    meta=["ID"],
+    errors="ignore"
+)
 
-print(df.head())
-print("Totaal stations:", len(df))
+connections.rename(columns={"ID": "ChargePointID"}, inplace=True)
 
 
-print("===== CSV OPSLAAN =====")
+# ===== DATA SAMENVOEGEN =====
 
-df.to_csv(OUTPUT_FILE, index=False)
+df_final = df.merge(connections, left_on="ID", right_on="ChargePointID", how="left")
+
+
+# ===== CSV OPSLAAN =====
+
+df_final.to_csv(OUTPUT_FILE, index=False)
 
 print("CSV opgeslagen als:", OUTPUT_FILE)
