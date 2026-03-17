@@ -5,7 +5,7 @@ import time
 # ===== INSTELLINGEN =====
 API_KEY = "216e21a9-472f-4d17-9b9e-0c2b1e81053a"
 COUNTRY = "NL"
-MAX_RESULTS = 1000
+MAX_RESULTS = 10000
 BATCH_SIZE = 100
 OUTPUT_FILE = "open_charge_map_NL.csv"
 
