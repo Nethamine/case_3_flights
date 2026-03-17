@@ -1,5 +1,5 @@
-pandas
-matplotlib
 streamlit
 folium
-
+streamlit-folium
+pandas
+requests
