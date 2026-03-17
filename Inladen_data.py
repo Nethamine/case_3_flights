@@ -2,20 +2,28 @@ import requests
 import pandas as pd
 import time
 
-
 # ===== INSTELLINGEN =====
-
 API_KEY = "216e21a9-472f-4d17-9b9e-0c2b1e81053a"
 COUNTRY = "NL"
-MAX_RESULTS = 10000
+MAX_RESULTS = 1000
 BATCH_SIZE = 100
-OUTPUT_FILE = "open_charge_map_full.csv"
+OUTPUT_FILE = "open_charge_map_NL.csv"
+
+# ===== NUTTIGE KOLLOMS =====
+useful_columns = [
+    "ID",
+    "AddressInfo_Title",
+    "AddressInfo_AddressLine1",
+    "AddressInfo_Town",
+    "AddressInfo_Postcode",
+    "AddressInfo_Latitude",
+    "AddressInfo_Longitude",
+    "NumberOfPoints"
+]
 
 print("Max datapunten:", MAX_RESULTS)
 
-
 # ===== DATA OPHALEN =====
-
 all_data = []
 offset = 0
 
@@ -34,7 +42,6 @@ while True:
     print("Request:", url)
 
     while True:
-
         response = requests.get(url)
 
         if response.status_code == 429:
@@ -57,39 +64,32 @@ while True:
         break
 
     all_data.extend(data)
-
     print("Totaal opgehaald:", len(all_data))
-
     offset += limit
 
+# ===== JSON FLATTEN =====
+def flatten_json(y, parent_key='', sep='_'):
+    items = []
+    if isinstance(y, dict):
+        for k, v in y.items():
+            new_key = f"{parent_key}{sep}{k}" if parent_key else k
+            items.extend(flatten_json(v, new_key, sep=sep).items())
+    elif isinstance(y, list):
+        for i, v in enumerate(y):
+            new_key = f"{parent_key}{sep}{i}"
+            items.extend(flatten_json(v, new_key, sep=sep).items())
+    else:
+        items.append((parent_key, y))
+    return dict(items)
 
-# ===== JSON NORMALIZEN =====
+flattened_data = [flatten_json(item) for item in all_data]
 
-df = pd.json_normalize(all_data)
+# ===== DATAFRAME MAKEN =====
+df = pd.DataFrame(flattened_data)
 
-print("Aantal kolommen:", len(df.columns))
-print("Aantal rijen:", len(df))
-
-
-# ===== CONNECTIONS NORMALIZEN =====
-
-connections = pd.json_normalize(
-    all_data,
-    record_path="Connections",
-    meta=["ID"],
-    errors="ignore"
-)
-
-connections.rename(columns={"ID": "ChargePointID"}, inplace=True)
-
-
-# ===== DATA SAMENVOEGEN =====
-
-df_final = df.merge(connections, left_on="ID", right_on="ChargePointID", how="left")
-
+# Alleen nuttige kolommen behouden
+df = df[[col for col in useful_columns if col in df.columns]]
 
 # ===== CSV OPSLAAN =====
-
-df_final.to_csv(OUTPUT_FILE, index=False)
-
+df.to_csv(OUTPUT_FILE, index=False)
 print("CSV opgeslagen als:", OUTPUT_FILE)
