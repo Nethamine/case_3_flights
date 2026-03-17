@@ -16,14 +16,8 @@ def v_direct(coord1,coord2,maxIter=200,tol=10**-12):
         return m, az12
         
     # Tolerance (tol) in meters
-    from math import atan
-    from math import atan2
-    from math import cos
-    from math import radians
-    from math import sin
-    from math import sqrt
-    from math import tan
-    from math import pi
+    from math import atan, atan2, cos, radians, sin, sqrt, tan, pi
+
     # Test Variables
     # maxIter=200
     # tol=10**-12
@@ -88,14 +82,7 @@ def v_direct(coord1,coord2,maxIter=200,tol=10**-12):
     return m#, az12
     
 def v_inverse(lat1,lon1,az12,s):
-    from math import pi
-    from math import sin
-    from math import cos
-    from math import tan
-    from math import atan
-    from math import atan2
-    from math import acos
-    from math import sqrt
+    from math import pi, sin, cos, tan, atan, atan2, acos, sqrt
     
     # Define some constants
     d2r = 180/pi;
