@@ -182,7 +182,7 @@ else:
         data=map_df,
         get_position='[lon, lat]',
         get_fill_color='[34, 197, 94, 200]',  # groen
-        get_radius=150,
+        get_radius=15,
         radius_min_pixels=4,
         radius_max_pixels=12,
         pickable=True,
@@ -204,5 +204,6 @@ else:
         layers=[layer],
         initial_view_state=view,
         tooltip=tooltip,
-        map_style="https://basemaps.cartocdn.com/gl/positron-gl-style/style.json",
+        map_style="satellite",
+        height=1200,
     ))
