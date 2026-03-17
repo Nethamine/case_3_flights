@@ -4,3 +4,4 @@ pydeck
 requests
 geopandas
 shapely
+plotly
