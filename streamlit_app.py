@@ -1,7 +1,6 @@
 import streamlit as st
 import pandas as pd
-import folium
-from streamlit_folium import st_folium
+import pydeck as pdk
 
 # ===== GEMEENTE -> PROVINCIE MAPPING =====
 gemeente_provincie = {
@@ -120,14 +119,11 @@ gemeente_provincie = {
     "dronten": "Flevoland", "noordoostpolder": "Flevoland", "urk": "Flevoland",
 }
 
-st.set_page_config(
-    page_title="Laadpalen Nederland",
-    page_icon="⚡",
-    layout="wide"
-)
-
+# ===== PAGINA INSTELLINGEN =====
+st.set_page_config(page_title="Laadpalen Nederland", page_icon="⚡", layout="wide")
 st.title("⚡ Laadpalen Nederland")
 
+# ===== DATA LADEN =====
 @st.cache_data
 def load_data():
     df = pd.read_csv('open_charge_map_NL.csv')
@@ -136,9 +132,10 @@ def load_data():
     df['AddressInfo_Longitude'] = pd.to_numeric(df['AddressInfo_Longitude'], errors='coerce')
     df = df.dropna(subset=['AddressInfo_Latitude', 'AddressInfo_Longitude'])
 
-    df['title_norm'] = df['AddressInfo_Title'].astype(str).str.strip().str.lower()
+    df['title_norm']   = df['AddressInfo_Title'].astype(str).str.strip().str.lower()
     df['address_norm'] = df['AddressInfo_AddressLine1'].astype(str).str.strip().str.lower()
-    df['town_norm'] = df['AddressInfo_Town'].astype(str).str.strip().str.lower()
+    df['town_norm']    = df['AddressInfo_Town'].astype(str).str.strip().str.lower()
+
     df = df.drop_duplicates(subset=['title_norm', 'address_norm', 'town_norm',
                                      'AddressInfo_Latitude', 'AddressInfo_Longitude'])
 
@@ -151,58 +148,61 @@ df = load_data()
 with st.sidebar:
     st.header("🔍 Filter")
 
-    filter_type = st.radio(
-        "Bekijken per:",
-        ["Alle locaties", "Provincie", "Gemeente"],
-        index=0
-    )
+    filter_type = st.radio("Bekijken per:", ["Alle locaties", "Provincie", "Gemeente"])
 
     filtered_df = df.copy()
 
     if filter_type == "Provincie":
-        provincies = sorted(df['Provincie'].unique())
-        gekozen = st.selectbox("Kies een provincie:", provincies)
+        gekozen = st.selectbox("Kies een provincie:", sorted(df['Provincie'].unique()))
         filtered_df = df[df['Provincie'] == gekozen]
 
     elif filter_type == "Gemeente":
-        gemeentes = sorted(df['AddressInfo_Town'].dropna().unique())
-        gekozen = st.selectbox("Kies een gemeente:", gemeentes)
+        gekozen = st.selectbox("Kies een gemeente:", sorted(df['AddressInfo_Town'].dropna().unique()))
         filtered_df = df[df['AddressInfo_Town'] == gekozen]
 
     st.metric("Laadpalen zichtbaar", len(filtered_df))
 
-# ===== MAP =====
+# ===== KAART =====
 if len(filtered_df) == 0:
     st.warning("Geen laadpalen gevonden voor deze selectie.")
 else:
     center_lat = filtered_df['AddressInfo_Latitude'].mean()
     center_lng = filtered_df['AddressInfo_Longitude'].mean()
+    zoom = 6 if filter_type == "Alle locaties" else (8 if filter_type == "Provincie" else 11)
 
-    # Zoomniveau aanpassen op filter
-    if filter_type == "Alle locaties":
-        zoom = 7
-    elif filter_type == "Provincie":
-        zoom = 9
-    else:
-        zoom = 12
+    map_df = filtered_df[['AddressInfo_Latitude', 'AddressInfo_Longitude',
+                           'AddressInfo_Title', 'AddressInfo_AddressLine1',
+                           'AddressInfo_Town', 'Provincie',
+                           'Connections_0_PowerKW']].copy()
+    map_df.columns = ['lat', 'lon', 'title', 'address', 'town', 'provincie', 'power']
+    map_df = map_df.fillna('N/A')
 
-    m = folium.Map(location=[center_lat, center_lng], zoom_start=zoom, tiles="OpenStreetMap")
+    layer = pdk.Layer(
+        "ScatterplotLayer",
+        data=map_df,
+        get_position='[lon, lat]',
+        get_fill_color='[34, 197, 94, 200]',  # groen
+        get_radius=150,
+        radius_min_pixels=4,
+        radius_max_pixels=12,
+        pickable=True,
+    )
 
-    from folium.plugins import MarkerCluster
-    cluster = MarkerCluster().add_to(m)
+    view = pdk.ViewState(
+        latitude=center_lat,
+        longitude=center_lng,
+        zoom=zoom,
+        pitch=0,
+    )
 
-    for _, row in filtered_df.iterrows():
-        popup = f"""
-        <b>{row['AddressInfo_Title']}</b><br>
-        {row['AddressInfo_AddressLine1']}<br>
-        {row['AddressInfo_Town']}<br>
-        <b>Vermogen:</b> {row.get('Connections_0_PowerKW', 'N/A')} kW<br>
-        <b>Provincie:</b> {row['Provincie']}
-        """
-        folium.Marker(
-            location=[row['AddressInfo_Latitude'], row['AddressInfo_Longitude']],
-            popup=folium.Popup(popup, max_width=250),
-            icon=folium.Icon(color='green', icon='bolt', prefix='fa')
-        ).add_to(cluster)
+    tooltip = {
+        "html": "<b>{title}</b><br>{address}<br>{town}<br>Vermogen: {power} kW<br>Provincie: {provincie}",
+        "style": {"backgroundColor": "#1e293b", "color": "white", "fontSize": "13px", "padding": "8px"}
+    }
 
-    st_folium(m, use_container_width=True, height=700)
+    st.pydeck_chart(pdk.Deck(
+        layers=[layer],
+        initial_view_state=view,
+        tooltip=tooltip,
+        map_style="https://basemaps.cartocdn.com/gl/positron-gl-style/style.json",
+    ))
