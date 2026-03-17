@@ -204,6 +204,6 @@ else:
         layers=[layer],
         initial_view_state=view,
         tooltip=tooltip,
-        map_style="satellite",
+        map_style="https://basemaps.cartocdn.com/gl/voyager-gl-style/style.json",
         height=1200,
     ))
