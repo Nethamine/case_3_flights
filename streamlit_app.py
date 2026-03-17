@@ -165,22 +165,25 @@ df_groep = (
 )
 df_groep["cumulatief"] = df_groep.groupby("brandstof_omschrijving")["aantal"].cumsum()
 
+# Bereken percentage per maand t.o.v. totaal alle brandstoffen
+totaal_per_maand = df_groep.groupby("jaar_maand")["cumulatief"].transform("sum")
+df_groep["percentage"] = (df_groep["cumulatief"] / totaal_per_maand * 100).round(2)
 if df_groep.empty:
     st.warning("Geen data beschikbaar voor de geselecteerde brandstoffen.")
 else:
     import plotly.express as px
     fig = px.line(
-        df_groep,
-        x="jaar_maand",
-        y="cumulatief",
-        color="brandstof_omschrijving",
-        labels={
-            "jaar_maand": "Datum",
-            "cumulatief": "Cumulatief aantal voertuigen",
-            "brandstof_omschrijving": "Brandstoftype"
-        },
-        template="plotly_white"
-    )
+    df_groep,
+    x="jaar_maand",
+    y="percentage",          # ← was "cumulatief"
+    color="brandstof_omschrijving",
+    labels={
+        "jaar_maand": "Datum",
+        "percentage": "Aandeel (%)",          # ← aangepast
+        "brandstof_omschrijving": "Brandstoftype"
+    },
+    template="plotly_white"
+)
     fig.update_traces(mode="lines", line_shape="spline")
     fig.update_layout(
         legend_title="Brandstoftype",
