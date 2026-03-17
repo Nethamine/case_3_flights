@@ -41,8 +41,14 @@ def load_data():
         pd.DataFrame(gdf.drop(columns=['geometry', 'index_right'], errors='ignore')),
         provincies_gdf
     )
-
+@st.cache_data
+def load_voertuigen():
+    df = pd.read_csv('rdw_voertuigen_clean.csv')
+    df["datum_tenaamstelling"] = pd.to_datetime(df["datum_tenaamstelling"], errors="coerce")
+    df["jaar_maand"] = df["datum_tenaamstelling"].dt.to_period("M").dt.to_timestamp()
+    return df
 df, provincies_gdf = load_data()
+df_voer = load_voertuigen()
 
 # ===== FILTERS OP PAGINA =====
 col1, col2, col3 = st.columns([1, 2, 1])
@@ -137,3 +143,50 @@ else:
         use_container_width=True,
         height=1000
     )
+# ===== VOERTUIGREGISTRATIES GRAFIEK =====
+st.divider()
+st.subheader("📈 Cumulatieve voertuigregistraties per brandstoftype")
+
+alle_brandstoffen = sorted(df_voer["brandstof_omschrijving"].dropna().unique())
+geselecteerd = st.multiselect(
+    "Filter op brandstoftype",
+    options=alle_brandstoffen,
+    default=["Benzine", "Diesel", "Elektriciteit", "Benzine/Elektriciteit"]
+)
+
+df_gefilterd = df_voer[df_voer["brandstof_omschrijving"].isin(geselecteerd)]
+
+df_groep = (
+    df_gefilterd
+    .groupby(["jaar_maand", "brandstof_omschrijving"])
+    .size()
+    .reset_index(name="aantal")
+    .sort_values("jaar_maand")
+)
+df_groep["cumulatief"] = df_groep.groupby("brandstof_omschrijving")["aantal"].cumsum()
+
+if df_groep.empty:
+    st.warning("Geen data beschikbaar voor de geselecteerde brandstoffen.")
+else:
+    import plotly.express as px
+    fig = px.line(
+        df_groep,
+        x="jaar_maand",
+        y="cumulatief",
+        color="brandstof_omschrijving",
+        labels={
+            "jaar_maand": "Datum",
+            "cumulatief": "Cumulatief aantal voertuigen",
+            "brandstof_omschrijving": "Brandstoftype"
+        },
+        template="plotly_white"
+    )
+    fig.update_traces(mode="lines", line_shape="spline")
+    fig.update_layout(
+        legend_title="Brandstoftype",
+        xaxis_title="Datum",
+        yaxis_title="Cumulatief aantal",
+        hovermode="x unified",
+        height=500
+    )
+    st.plotly_chart(fig, use_container_width=True)
