@@ -27,7 +27,7 @@ useful_columns = [
     "Connections_2_ConnectionType_FormalName",
     "Connections_2_PowerKW",
     "Connections_3_ConnectionType_FormalName",
-    "Connections_3_PowerKW",
+    "Connections_3_PowerKW"
 ]
 
 print("Max datapunten:", MAX_RESULTS)
@@ -96,8 +96,14 @@ flattened_data = [flatten_json(item) for item in all_data]
 # ===== DATAFRAME MAKEN =====
 df = pd.DataFrame(flattened_data)
 
-# Alleen nuttige kolommen behouden
+# Alleen nuttige kollomen behouden
 df = df[[col for col in useful_columns if col in df.columns]]
+
+# Vervang lege waarden met "N/A"
+df = df.astype(str).fillna("N/A")
+
+print("Aantal kolommen:", len(df.columns))
+print("Aantal rijen:", len(df))
 
 # ===== CSV OPSLAAN =====
 df.to_csv(OUTPUT_FILE, index=False)
