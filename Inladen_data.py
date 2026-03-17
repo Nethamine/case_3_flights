@@ -18,7 +18,16 @@ useful_columns = [
     "AddressInfo_Postcode",
     "AddressInfo_Latitude",
     "AddressInfo_Longitude",
-    "NumberOfPoints"
+    "NumberOfPoints",
+    "StatusType_IsOperational",
+    "Connections_0_ConnectionType_FormalName",
+    "Connections_0_PowerKW",
+    "Connections_1_ConnectionType_FormalName",
+    "Connections_1_PowerKW",
+    "Connections_2_ConnectionType_FormalName",
+    "Connections_2_PowerKW",
+    "Connections_3_ConnectionType_FormalName",
+    "Connections_3_PowerKW",
 ]
 
 print("Max datapunten:", MAX_RESULTS)
