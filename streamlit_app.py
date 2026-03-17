@@ -208,5 +208,5 @@ else:
         map_style="https://basemaps.cartocdn.com/gl/positron-gl-style/style.json",
     ),
     use_container_width=True,
-    height=700
+    height=1200
 )
