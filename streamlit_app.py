@@ -2,6 +2,7 @@ import streamlit as st
 import pandas as pd
 import pydeck as pdk
 import geopandas as gpd
+import json
 from shapely.geometry import Point
 
 # ===== PAGINA INSTELLINGEN =====
@@ -11,7 +12,6 @@ st.title("⚡ Laadpalen Nederland")
 # ===== DATA LADEN =====
 @st.cache_data
 def load_data():
-    # Laadpalen
     df = pd.read_csv('open_charge_map_NL.csv')
     df.columns = df.columns.str.strip()
     df['AddressInfo_Latitude']  = pd.to_numeric(df['AddressInfo_Latitude'],  errors='coerce')
@@ -24,27 +24,25 @@ def load_data():
     df = df.drop_duplicates(subset=['title_norm', 'address_norm', 'town_norm',
                                      'AddressInfo_Latitude', 'AddressInfo_Longitude'])
 
-    # Provinciegrenzen laden vanuit lokaal bestand
     provincies_gdf = gpd.read_file('provincies.geojson')
     provincies_gdf = provincies_gdf[['statnaam', 'geometry']].rename(columns={'statnaam': 'Provincie'})
+    provincies_gdf = provincies_gdf.to_crs("EPSG:4326")
 
-    # Coördinaten omzetten naar GeoDataFrame
     gdf = gpd.GeoDataFrame(
         df,
         geometry=[Point(lon, lat) for lon, lat in zip(df['AddressInfo_Longitude'], df['AddressInfo_Latitude'])],
         crs="EPSG:4326"
     )
 
-    # Zorg dat beide hetzelfde CRS hebben
-    provincies_gdf = provincies_gdf.to_crs("EPSG:4326")
-
-    # Spatial join: koppel elke laadpaal aan een provincie op basis van coördinaten
     gdf = gdf.sjoin(provincies_gdf, how='left', predicate='within')
     gdf['Provincie'] = gdf['Provincie'].fillna('Onbekend')
 
-    return pd.DataFrame(gdf.drop(columns=['geometry', 'index_right'], errors='ignore'))
+    return (
+        pd.DataFrame(gdf.drop(columns=['geometry', 'index_right'], errors='ignore')),
+        provincies_gdf
+    )
 
-df = load_data()
+df, provincies_gdf = load_data()
 
 # ===== FILTERS OP PAGINA =====
 col1, col2, col3 = st.columns([1, 2, 1])
@@ -54,6 +52,7 @@ with col1:
 
 with col2:
     filtered_df = df.copy()
+    gekozen = None
 
     if filter_type == "Provincie":
         gekozen = st.selectbox("Kies een provincie:", sorted(df['Provincie'].unique()))
@@ -84,7 +83,8 @@ else:
     map_df.columns = ['lat', 'lon', 'title', 'address', 'town', 'provincie', 'power']
     map_df = map_df.fillna('N/A')
 
-    layer = pdk.Layer(
+    # ===== MARKERS LAAG =====
+    scatter_layer = pdk.Layer(
         "ScatterplotLayer",
         data=map_df,
         get_position='[lon, lat]',
@@ -94,6 +94,26 @@ else:
         radius_max_pixels=12,
         pickable=True,
     )
+
+    layers = [scatter_layer]
+
+    # ===== PROVINCIEGRENZEN LAAG =====
+    if filter_type == "Provincie" and gekozen:
+        provincie_shape = provincies_gdf[provincies_gdf['Provincie'] == gekozen]
+
+        if not provincie_shape.empty:
+            geojson_data = json.loads(provincie_shape.to_json())
+
+            grens_layer = pdk.Layer(
+                "GeoJsonLayer",
+                data=geojson_data,
+                stroked=True,
+                filled=True,
+                get_line_color=[220, 38, 38, 255],    # rood
+                get_fill_color=[220, 38, 38, 20],     # licht rood transparant
+                line_width_min_pixels=3,
+            )
+            layers.append(grens_layer)
 
     view = pdk.ViewState(
         latitude=center_lat,
@@ -109,7 +129,7 @@ else:
 
     st.pydeck_chart(
         pdk.Deck(
-            layers=[layer],
+            layers=layers,
             initial_view_state=view,
             tooltip=tooltip,
             map_style="https://basemaps.cartocdn.com/gl/positron-gl-style/style.json",
