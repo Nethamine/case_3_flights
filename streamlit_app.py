@@ -131,36 +131,39 @@ def load_data():
     df['AddressInfo_Latitude'] = pd.to_numeric(df['AddressInfo_Latitude'], errors='coerce')
     df['AddressInfo_Longitude'] = pd.to_numeric(df['AddressInfo_Longitude'], errors='coerce')
     df = df.dropna(subset=['AddressInfo_Latitude', 'AddressInfo_Longitude'])
-
     df['title_norm']   = df['AddressInfo_Title'].astype(str).str.strip().str.lower()
     df['address_norm'] = df['AddressInfo_AddressLine1'].astype(str).str.strip().str.lower()
     df['town_norm']    = df['AddressInfo_Town'].astype(str).str.strip().str.lower()
-
     df = df.drop_duplicates(subset=['title_norm', 'address_norm', 'town_norm',
                                      'AddressInfo_Latitude', 'AddressInfo_Longitude'])
-
     df['Provincie'] = df['town_norm'].map(gemeente_provincie).fillna('Onbekend')
     return df
 
 df = load_data()
 
-# ===== SIDEBAR FILTERS =====
-with st.sidebar:
-    st.header("🔍 Filter")
+# ===== FILTERS OP PAGINA =====
+col1, col2, col3 = st.columns([1, 2, 1])
 
-    filter_type = st.radio("Bekijken per:", ["Alle locaties", "Provincie", "Gemeente"])
+with col1:
+    filter_type = st.radio("Bekijken per:", ["Alle locaties", "Provincie", "Gemeente"], horizontal=False)
 
+with col2:
     filtered_df = df.copy()
+    gekozen = None
 
     if filter_type == "Provincie":
         gekozen = st.selectbox("Kies een provincie:", sorted(df['Provincie'].unique()))
         filtered_df = df[df['Provincie'] == gekozen]
-
     elif filter_type == "Gemeente":
         gekozen = st.selectbox("Kies een gemeente:", sorted(df['AddressInfo_Town'].dropna().unique()))
         filtered_df = df[df['AddressInfo_Town'] == gekozen]
+    else:
+        st.write("")  # lege ruimte voor uitlijning
 
+with col3:
     st.metric("Laadpalen zichtbaar", len(filtered_df))
+
+st.divider()
 
 # ===== KAART =====
 if len(filtered_df) == 0:
@@ -181,7 +184,7 @@ else:
         "ScatterplotLayer",
         data=map_df,
         get_position='[lon, lat]',
-        get_fill_color='[34, 197, 94, 200]',  # groen
+        get_fill_color='[34, 197, 94, 200]',
         get_radius=5,
         radius_min_pixels=4,
         radius_max_pixels=12,
@@ -201,12 +204,12 @@ else:
     }
 
     st.pydeck_chart(
-    pdk.Deck(
-        layers=[layer],
-        initial_view_state=view,
-        tooltip=tooltip,
-        map_style="https://basemaps.cartocdn.com/gl/positron-gl-style/style.json",
-    ),
-    use_container_width=True,
-    height=1000
-)
+        pdk.Deck(
+            layers=[layer],
+            initial_view_state=view,
+            tooltip=tooltip,
+            map_style="https://basemaps.cartocdn.com/gl/positron-gl-style/style.json",
+        ),
+        use_container_width=True,
+        height=1000
+    )
