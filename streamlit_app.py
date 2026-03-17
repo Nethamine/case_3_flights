@@ -206,5 +206,4 @@ else:
         tooltip=tooltip,
         map_style="https://basemaps.cartocdn.com/gl/voyager-gl-style/style.json",
         use_container_width=True, 
-        height=800,
     ))
