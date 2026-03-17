@@ -1,0 +1,11 @@
+import pickle
+
+# Bestandspad
+pkl_file = "Charging_data.pkl"
+
+# Openen in read-binary mode
+with open(pkl_file, "rb") as f:
+    data = pickle.load(f)
+
+# Print inhoud
+print(data.describe())
