@@ -1,0 +1,8 @@
+import urllib.request
+import json
+ 
+url = "https://service.pdok.nl/cbs/gebiedsindelingen/2023/wfs/v1_0?service=WFS&version=2.0.0&request=GetFeature&typeName=gebiedsindelingen:provincie_gegeneraliseerd&outputFormat=application/json"
+ 
+print("Provinciegrenzen downloaden van PDOK...")
+urllib.request.urlretrieve(url, "provincies.geojson")
+print("✓ Opgeslagen als provincies.geojson")

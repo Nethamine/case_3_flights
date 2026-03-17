@@ -24,9 +24,8 @@ def load_data():
     df = df.drop_duplicates(subset=['title_norm', 'address_norm', 'town_norm',
                                      'AddressInfo_Latitude', 'AddressInfo_Longitude'])
 
-    # Provinciegrenzen ophalen van PDOK (officiële NL overheidskaarten)
-    url = "https://service.pdok.nl/cbs/gebiedsindelingen/2023/wfs/v1_0?service=WFS&version=2.0.0&request=GetFeature&typeName=gebiedsindelingen:provincie_gegeneraliseerd&outputFormat=application/json"
-    provincies_gdf = gpd.read_file(url)
+    # Provinciegrenzen laden vanuit lokaal bestand
+    provincies_gdf = gpd.read_file('provincies.geojson')
     provincies_gdf = provincies_gdf[['statnaam', 'geometry']].rename(columns={'statnaam': 'Provincie'})
 
     # Coördinaten omzetten naar GeoDataFrame
@@ -36,7 +35,10 @@ def load_data():
         crs="EPSG:4326"
     )
 
-    # Spatial join: koppel elke laadpaal aan een provincie
+    # Zorg dat beide hetzelfde CRS hebben
+    provincies_gdf = provincies_gdf.to_crs("EPSG:4326")
+
+    # Spatial join: koppel elke laadpaal aan een provincie op basis van coördinaten
     gdf = gdf.sjoin(provincies_gdf, how='left', predicate='within')
     gdf['Provincie'] = gdf['Provincie'].fillna('Onbekend')
 
