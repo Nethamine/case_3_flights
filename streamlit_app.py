@@ -929,11 +929,26 @@ with tab3:
     st.markdown("<div style='margin-top:24px'></div>", unsafe_allow_html=True)
 
     # --- Lijndiagram aandeel ---
+    # --- Slider voor tijdsbereik ---
+    min_datum = df_groep["jaar_maand"].min().year
+    max_datum = df_groep["jaar_maand"].max().year
+
+    jaar_range = st.slider(
+        "Selecteer tijdsbereik:",
+        min_value=min_datum,
+        max_value=max_datum,
+        value=(min_datum, max_datum)
+    )
+
+    df_groep_gefilterd = df_groep[
+        (df_groep["jaar_maand"].dt.year >= jaar_range[0]) &
+        (df_groep["jaar_maand"].dt.year <= jaar_range[1])
+    ]
     if df_groep.empty:
         st.warning("Geen data beschikbaar.")
     else:
         fig_aandeel = px.line(
-            df_groep,
+            df_groep_gefilterd,
             x="jaar_maand",
             y="percentage",
             color="categorie",
@@ -967,7 +982,7 @@ with tab3:
     st.markdown("### Absolute registraties per aandrijflijn")
 
     fig_abs = px.line(
-        df_groep,
+        df_groep_gefilterd,
         x="jaar_maand",
         y="cumulatief",
         color="categorie",
