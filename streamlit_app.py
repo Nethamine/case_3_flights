@@ -408,7 +408,7 @@ with tab1:
         st.pydeck_chart(
             pdk.Deck(layers=layers, initial_view_state=view, tooltip=tooltip,
                      map_style="https://basemaps.cartocdn.com/gl/positron-gl-style/style.json"),
-            use_container_width=True,
+            width="stretch",
             height=1000
         )
 
@@ -428,7 +428,7 @@ with tab2:
         )
 
     with col_btn:
-        search_clicked = st.button("⚡ Zoek Route", use_container_width=True)
+        search_clicked = st.button("⚡ Zoek Route", width="stretch")
 
     # ---- Results ----
     if search_clicked and address_input.strip():
@@ -583,7 +583,7 @@ with tab2:
                     tooltip=tooltip_map,
                     map_style="https://basemaps.cartocdn.com/gl/dark-matter-gl-style/style.json",
                 ),
-                use_container_width=True,
+                width="stretch",
                 height=620,
             )
 
@@ -730,7 +730,7 @@ with tab3:
             height=460,
             margin=dict(t=20, b=20),
         )
-        st.plotly_chart(fig_aandeel, use_container_width=True)
+        st.plotly_chart(fig_aandeel, width="stretch")
 
     st.divider()
 
@@ -764,7 +764,7 @@ with tab3:
         height=420,
         margin=dict(t=20, b=20),
     )
-    st.plotly_chart(fig_abs, use_container_width=True)
+    st.plotly_chart(fig_abs, width="stretch")
 
     # --- Voertuigsoort filter ---
     st.divider()
@@ -810,4 +810,4 @@ with tab3:
         height=400,
         margin=dict(t=20, b=20),
     )
-    st.plotly_chart(fig_soort, use_container_width=True)
+    st.plotly_chart(fig_soort, width="stretch")
