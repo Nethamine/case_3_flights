@@ -217,34 +217,75 @@ def geocode_address(address: str):
         pass
     return None, None, None
 
-def find_nearest_charger_dijkstra(user_lat, user_lon, df, tree, n_candidates=50):
+def _osrm_route(origin_lon, origin_lat, dest_lon, dest_lat):
     """
-    Proper geo-based Dijkstra:
-    - Graph: one source node (user location) + N nearest charger candidates as target nodes.
-    - Edge weight: true Haversine distance in km from user to each charger.
-    - Dijkstra finds the minimum-weight edge = geographically nearest charger.
-    - Returns: best charger index, direct distance in km, and the arc path for the map.
+    Fetch a driving route from the public OSRM demo server.
+    Returns (road_distance_km, road_duration_min, route_coords) or (None, None, None) on failure.
+    route_coords is a list of {"lat": ..., "lon": ...} dicts decoded from the polyline geometry.
+    """
+    url = (
+        f"http://router.project-osrm.org/route/v1/driving/"
+        f"{origin_lon},{origin_lat};{dest_lon},{dest_lat}"
+        f"?overview=full&geometries=geojson&steps=false"
+    )
+    headers = {"User-Agent": "LaadpalenNL-StreamlitApp/1.0"}
+    try:
+        r = requests.get(url, headers=headers, timeout=8)
+        data = r.json()
+        if data.get("code") != "Ok" or not data.get("routes"):
+            return None, None, None
+        route = data["routes"][0]
+        dist_km  = route["distance"] / 1000.0
+        dur_min  = route["duration"] / 60.0
+        coords   = [
+            {"lat": c[1], "lon": c[0]}
+            for c in route["geometry"]["coordinates"]
+        ]
+        return dist_km, dur_min, coords
+    except Exception:
+        return None, None, None
+
+def find_nearest_charger_dijkstra(user_lat, user_lon, df, tree, n_candidates=10):
+    """
+    Geo-based Dijkstra using real road distances via OSRM:
+    1. BallTree selects the N nearest charger candidates by straight-line distance.
+    2. For each candidate, fetch the actual road distance from OSRM.
+    3. Build a single-source graph: user → each candidate, weight = road distance (km).
+    4. Dijkstra selects the candidate with the minimum road distance.
+    5. Fetch the final road geometry for the winning charger to draw on the map.
+    Returns: (best_charger_idx, road_dist_km, road_duration_min, route_coords)
     """
     R = 6371.0
 
-    # Query the N nearest chargers from the user's location
+    # Step 1: get N nearest by straight-line as candidates
     user_rad = np.radians([[user_lat, user_lon]])
     distances_rad, indices = tree.query(user_rad, k=n_candidates)
 
-    # Build single-source Dijkstra graph:
-    # Node 0 = user (virtual), nodes 1..N = charger candidates
-    # Each edge goes directly from user to a charger with Haversine weight
+    # Step 2 & 3: query OSRM for each candidate, build Dijkstra graph
     USER_NODE = 0
-    graph = {USER_NODE: []}
-    for rank, (dist_rad, charger_idx) in enumerate(zip(distances_rad[0], indices[0])):
-        node_id = rank + 1          # charger node ids start at 1
-        dist_km = float(dist_rad) * R
-        graph[USER_NODE].append((node_id, dist_km))
-        graph[node_id] = []         # charger nodes have no outgoing edges
+    graph        = {USER_NODE: []}
+    route_cache  = {}   # node_id → (dist_km, dur_min, coords)
 
-    # --- Dijkstra ---
+    for rank, charger_idx in enumerate(indices[0]):
+        node_id     = rank + 1
+        c_lat = float(df.iloc[charger_idx]['AddressInfo_Latitude'])
+        c_lon = float(df.iloc[charger_idx]['AddressInfo_Longitude'])
+
+        dist_km, dur_min, coords = _osrm_route(user_lon, user_lat, c_lon, c_lat)
+
+        if dist_km is None:
+            # Fall back to Haversine if OSRM fails for this candidate
+            dist_km  = float(distances_rad[0][rank]) * R
+            dur_min  = None
+            coords   = None
+
+        graph[USER_NODE].append((node_id, dist_km))
+        graph[node_id]  = []
+        route_cache[node_id] = (int(charger_idx), dist_km, dur_min, coords)
+
+    # Step 4: Dijkstra (single-source star graph → trivially picks min edge)
     dist_map = {node: float('inf') for node in graph}
-    prev_map = {node: None for node in graph}
+    prev_map = {node: None         for node in graph}
     dist_map[USER_NODE] = 0.0
     pq = [(0.0, USER_NODE)]
 
@@ -259,31 +300,20 @@ def find_nearest_charger_dijkstra(user_lat, user_lon, df, tree, n_candidates=50)
                 prev_map[v] = u
                 heapq.heappush(pq, (nd, v))
 
-    # Find the nearest charger node (minimum distance from Dijkstra)
     best_node = min(
-        (node for node in graph if node != USER_NODE),
+        (n for n in graph if n != USER_NODE),
         key=lambda n: dist_map[n]
     )
-    best_rank = best_node - 1
-    best_charger_idx = int(indices[0][best_rank])
-    total_dist_km = dist_map[best_node]
 
-    # Build a smooth geodesic arc between user and charger (for the map)
-    charger_lat = float(df.iloc[best_charger_idx]['AddressInfo_Latitude'])
-    charger_lon = float(df.iloc[best_charger_idx]['AddressInfo_Longitude'])
-    arc_points = _geodesic_arc(user_lat, user_lon, charger_lat, charger_lon, steps=40)
+    best_charger_idx, road_dist_km, road_dur_min, road_coords = route_cache[best_node]
 
-    return best_charger_idx, total_dist_km, arc_points
+    # If we only have a fallback distance but no geometry, fetch geometry now
+    if road_coords is None:
+        c_lat = float(df.iloc[best_charger_idx]['AddressInfo_Latitude'])
+        c_lon = float(df.iloc[best_charger_idx]['AddressInfo_Longitude'])
+        _, _, road_coords = _osrm_route(user_lon, user_lat, c_lon, c_lat)
 
-def _geodesic_arc(lat1, lon1, lat2, lon2, steps=40):
-    """Generate a list of (lat, lon) points along the great-circle arc between two points."""
-    arc = []
-    for i in range(steps + 1):
-        t = i / steps
-        lat = lat1 + t * (lat2 - lat1)
-        lon = lon1 + t * (lon2 - lon1)
-        arc.append({"lat": lat, "lon": lon})
-    return arc
+    return best_charger_idx, road_dist_km, road_dur_min, road_coords
 
 
 df, provincies_gdf = load_data()
@@ -399,8 +429,8 @@ with tab2:
         if user_lat is None:
             st.error("❌ Adres niet gevonden. Probeer een andere zoekopdracht.")
         else:
-            with st.spinner("Dijkstra's algoritme berekent de optimale route..."):
-                best_idx, total_dist, arc_points = find_nearest_charger_dijkstra(
+            with st.spinner("Rijroute berekenen via OSRM & Dijkstra..."):
+                best_idx, road_dist, road_dur, road_coords = find_nearest_charger_dijkstra(
                     user_lat, user_lon, df, ball_tree
                 )
 
@@ -408,16 +438,18 @@ with tab2:
             charger_lat = float(charger['AddressInfo_Latitude'])
             charger_lon = float(charger['AddressInfo_Longitude'])
 
+            dur_str = f"{road_dur:.0f} min" if road_dur is not None else "N/A"
+
             # --- Metrics ---
             st.markdown(f"""
             <div class="metric-row">
                 <div class="metric-box">
-                    <div class="label">Kortste afstand</div>
-                    <div class="value">{total_dist:.2f} km</div>
+                    <div class="label">Rijafstand</div>
+                    <div class="value">{road_dist:.2f} km</div>
                 </div>
                 <div class="metric-box">
-                    <div class="label">Kandidaten geëvalueerd</div>
-                    <div class="value">50</div>
+                    <div class="label">Reistijd</div>
+                    <div class="value">{dur_str}</div>
                 </div>
                 <div class="metric-box">
                     <div class="label">Laadpalen netwerk</div>
@@ -463,20 +495,26 @@ with tab2:
                 pickable=False,
             )
 
-            # Arc path: smooth geodesic line from user → charger
-            arc_segments = [
-                {"start": [arc_points[i]["lon"], arc_points[i]["lat"]],
-                 "end":   [arc_points[i+1]["lon"], arc_points[i+1]["lat"]]}
-                for i in range(len(arc_points) - 1)
-            ]
+            # Road route line — real OSRM geometry if available, else straight fallback
+            if road_coords and len(road_coords) >= 2:
+                route_segments = [
+                    {"start": [road_coords[i]["lon"], road_coords[i]["lat"]],
+                     "end":   [road_coords[i+1]["lon"], road_coords[i+1]["lat"]]}
+                    for i in range(len(road_coords) - 1)
+                ]
+            else:
+                route_segments = [{
+                    "start": [user_lon, user_lat],
+                    "end":   [charger_lon, charger_lat]
+                }]
 
-            arc_layer = pdk.Layer(
+            route_layer = pdk.Layer(
                 "LineLayer",
-                data=arc_segments,
+                data=route_segments,
                 get_source_position="start",
                 get_target_position="end",
                 get_color=[251, 191, 36, 240],
-                get_width=4,
+                get_width=5,
                 width_min_pixels=3,
             )
 
@@ -492,7 +530,7 @@ with tab2:
                 pickable=True,
             )
 
-            # Destination charger (bright green, larger)
+            # Destination charger (bright green)
             end_layer = pdk.Layer(
                 "ScatterplotLayer",
                 data=[{"lat": charger_lat, "lon": charger_lon,
@@ -505,17 +543,17 @@ with tab2:
                 pickable=True,
             )
 
-            # View: centred between start and destination
+            # View: fit around the route
             mid_lat = (user_lat + charger_lat) / 2
             mid_lon = (user_lon + charger_lon) / 2
 
-            if total_dist < 1:
+            if road_dist < 1:
                 zoom_level = 14
-            elif total_dist < 3:
+            elif road_dist < 3:
                 zoom_level = 13
-            elif total_dist < 8:
+            elif road_dist < 8:
                 zoom_level = 12
-            elif total_dist < 20:
+            elif road_dist < 20:
                 zoom_level = 10
             else:
                 zoom_level = 8
@@ -531,7 +569,7 @@ with tab2:
 
             st.pydeck_chart(
                 pdk.Deck(
-                    layers=[bg_layer, arc_layer, start_layer, end_layer],
+                    layers=[bg_layer, route_layer, start_layer, end_layer],
                     initial_view_state=view,
                     tooltip=tooltip_map,
                     map_style="https://basemaps.cartocdn.com/gl/dark-matter-gl-style/style.json",
@@ -546,12 +584,12 @@ with tab2:
                 <span style="color:#fbbf24; font-family:'Space Mono',monospace; font-weight:700;">
                     HOE WERKT HET
                 </span><br><br>
-                De BallTree-index selecteert de <strong style="color:white;">50 geografisch dichtstbijzijnde 
-                laadpalen</strong> als kandidaten. Dijkstra's algoritme modelleert uw startlocatie als 
-                bronknoop met directe gewogen kanten naar elke kandidaat 
-                (gewicht = Haversine-afstand in km). Het algoritme bepaalt de 
-                <strong style="color:white;">minimale afstand</strong> en geeft de geografisch 
-                dichtstbijzijnde laadpaal terug. De gele lijn toont de kortste geodetische route.
+                De BallTree selecteert de <strong style="color:white;">10 geografisch dichtstbijzijnde 
+                laadpalen</strong> als kandidaten. Voor elke kandidaat wordt de echte 
+                <strong style="color:white;">rijafstand via OSRM</strong> (OpenStreetMap routing) 
+                opgehaald. Dijkstra's algoritme kiest de kandidaat met de 
+                <strong style="color:white;">kortste rijafstand over de weg</strong> — niet de 
+                hemelsbreed dichtstbijzijnde. De gele lijn volgt de exacte rijroute.
             </div>
             """, unsafe_allow_html=True)
 
