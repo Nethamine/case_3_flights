@@ -545,14 +545,20 @@ with tab2:
     st.markdown("Voer een adres, plaatsnaam of postcode in. Het algoritme berekent de kortste route door het laadpalennetwerk.")
 
     # ----- Session state initialiseren -----
-    if "address_input"    not in st.session_state:
-        st.session_state["address_input"]    = ""
-    if "suggestions"      not in st.session_state:
-        st.session_state["suggestions"]      = []
-    if "selected_address" not in st.session_state:
-        st.session_state["selected_address"] = ""
+    for _k, _v in [
+        ("address_input",    ""),
+        ("suggestions",      []),
+        ("selected_address", ""),
+        ("input_version",    0),
+    ]:
+        if _k not in st.session_state:
+            st.session_state[_k] = _v
 
     col_search, col_btn = st.columns([3, 1])
+
+    # Unieke key per versie zodat Streamlit het veld opnieuw initialiseert
+    # met de nieuwe waarde als een suggestie geselecteerd wordt.
+    input_key = f"address_input_v{st.session_state['input_version']}"
 
     with col_search:
         typed = st.text_input(
@@ -560,16 +566,16 @@ with tab2:
             value=st.session_state["address_input"],
             placeholder="bijv. Kalverstraat 1, Amsterdam  •  3012 Rotterdam  •  Eindhoven Centrum",
             label_visibility="collapsed",
-            key="raw_address_input",
+            key=input_key,
         )
 
     with col_btn:
         search_clicked = st.button("⚡ Zoek Route", width="stretch")
 
-    # ----- Suggesties ophalen als invoer veranderd is -----
+    # ----- Suggesties ophalen als de gebruiker typt -----
     if typed != st.session_state["address_input"]:
         st.session_state["address_input"]    = typed
-        st.session_state["selected_address"] = ""          # reset selectie bij nieuw typen
+        st.session_state["selected_address"] = ""
         if len(typed.strip()) >= 3:
             st.session_state["suggestions"] = fetch_suggestions(typed.strip())
         else:
@@ -591,17 +597,8 @@ with tab2:
                     st.session_state["selected_address"] = suggestion
                     st.session_state["address_input"]    = suggestion
                     st.session_state["suggestions"]      = []
+                    st.session_state["input_version"]   += 1
                     st.rerun()
-
-    # ----- Bevestiging van geselecteerd adres -----
-    if st.session_state["selected_address"]:
-        st.markdown(
-            f"<div style='margin: 6px 0 10px 0; padding: 8px 14px; "
-            f"background: rgba(34,197,94,0.1); border: 1px solid #22c55e; "
-            f"border-radius: 8px; font-size: 13px; color: #22c55e;'>"
-            f"✅ {st.session_state['selected_address']}</div>",
-            unsafe_allow_html=True,
-        )
 
     # ----- Bepaal het uiteindelijke adres voor de zoekopdracht -----
     final_address = st.session_state["selected_address"] or st.session_state["address_input"]
