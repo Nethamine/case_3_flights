@@ -862,8 +862,6 @@ with tab3:
         if b == "elektriciteit":
             return "🔋 Volledig elektrisch"
         elif "elektriciteit" in b and ("benzine" in b or "diesel" in b):
-            return "⚡ Plug-in hybride"
-        elif b in ["benzine", "diesel", "lpg", "cng", "waterstof", "alcohol", "overig"]:
             return "⛽ Fossiel"
         else:
             return None
