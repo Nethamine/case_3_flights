@@ -226,9 +226,11 @@ def load_data():
 
 @st.cache_data
 def load_voertuigen():
-    df = pd.read_csv('rdw_voertuigen_clean.csv')
-    df["datum_tenaamstelling"] = pd.to_datetime(df["datum_tenaamstelling"], errors="coerce")
-    df["jaar_maand"] = df["datum_tenaamstelling"].dt.to_period("M").dt.to_timestamp()
+    df = pd.read_parquet('rdw_voertuigen.parquet')
+    df["datum_eerste_toelating"] = pd.to_datetime(
+        df["datum_eerste_toelating"].astype(str), format="%Y%m%d", errors="coerce"
+    )
+    df["jaar_maand"] = df["datum_eerste_toelating"].dt.to_period("M").dt.to_timestamp()
     return df
 
 @st.cache_resource
@@ -836,13 +838,15 @@ with tab2:
         </div>
         """, unsafe_allow_html=True)
 
-# ==================== TAB 3: VOERTUIGREGISTRATIES =========================
+# ==================== TAB 3: VOERTUIGREGISTRATIES ====================
 with tab3:
+    import plotly.express as px
 
     st.markdown('<div class="algo-badge">RDW OPEN DATA</div>', unsafe_allow_html=True)
     st.markdown("### Aandeel voertuigen per aandrijflijn")
     st.markdown("Cumulatief aandeel van het Nederlandse wagenpark per brandstofcategorie over de tijd.")
 
+    # --- Categorisering ---
     def categoriseer_brandstof(brandstof):
         if pd.isna(brandstof):
             return None
@@ -856,11 +860,10 @@ with tab3:
         else:
             return None
 
-    # ----- Data categoriseren -----
-    df_cat = df_voer.copy()
-    df_cat["categorie"] = df_cat["brandstof_omschrijving"].apply(categoriseer_brandstof)
-    df_cat = df_cat[df_cat["categorie"].notna()].copy()
+    df_voer["categorie"] = df_voer["brandstof_omschrijving"].apply(categoriseer_brandstof)
+    df_cat = df_voer[df_voer["categorie"].notna()].copy()
 
+    # --- Groeperen en cumuleren ---
     df_groep = (
         df_cat
         .groupby(["jaar_maand", "categorie"])
@@ -870,24 +873,24 @@ with tab3:
     )
     df_groep["cumulatief"] = df_groep.groupby("categorie")["aantal"].cumsum()
 
+    # --- Percentage t.o.v. totaal lopend bestand per maand ---
     totaal_per_maand = df_groep.groupby("jaar_maand")["cumulatief"].transform("sum")
     df_groep["percentage"] = (df_groep["cumulatief"] / totaal_per_maand * 100).round(2)
 
-    # ----- Kleurschema -----
+    # --- Kleurmap ---
     kleur_map = {
         "🔋 Volledig elektrisch": "#22c55e",
         "⚡ Plug-in hybride":     "#f59e0b",
         "⛽ Fossiel":              "#64748b",
     }
 
-    # ----- Statistieken laatste maand -----
+    # --- Snelle statistieken bovenaan ---
     laatste_maand = df_groep["jaar_maand"].max()
     laatste = df_groep[df_groep["jaar_maand"] == laatste_maand].set_index("categorie")
 
     def pct(cat):
         return f"{laatste.loc[cat, 'percentage']:.1f}%" if cat in laatste.index else "N/A"
 
-    # ----- KPI metrics -----
     col_a, col_b, col_c = st.columns(3)
     with col_a:
         st.markdown(f"""
@@ -919,7 +922,7 @@ with tab3:
 
     st.markdown("<div style='margin-top:24px'></div>", unsafe_allow_html=True)
 
-    # ----- Grafiek: aandeel per categorie -----
+    # --- Lijndiagram aandeel ---
     if df_groep.empty:
         st.warning("Geen data beschikbaar.")
     else:
@@ -950,11 +953,11 @@ with tab3:
             height=460,
             margin=dict(t=20, b=20),
         )
-        st.plotly_chart(fig_aandeel, width="stretch")
+        st.plotly_chart(fig_aandeel, use_container_width=True)
 
     st.divider()
 
-    # ----- Grafiek: absolute aantallen -----
+    # --- Absolute aantallen per categorie ---
     st.markdown("### Absolute registraties per aandrijflijn")
 
     fig_abs = px.line(
@@ -968,7 +971,7 @@ with tab3:
             "cumulatief": "Cumulatief aantal voertuigen",
             "categorie": "Aandrijflijn"
         },
-        template="plotly_dark",
+            template="plotly_dark",
     )
     fig_abs.update_traces(mode="lines", line_shape="spline", line=dict(width=2.5))
     fig_abs.update_layout(
@@ -984,50 +987,4 @@ with tab3:
         height=420,
         margin=dict(t=20, b=20),
     )
-    st.plotly_chart(fig_abs, width="stretch")
-
-    st.divider()
-    # ----- Grafiek: uitsplitsing per voertuigsoort -----
-    st.markdown("### Uitsplitsing per voertuigsoort")
-
-    voertuigsoorten = sorted(df_voer["voertuigsoort"].dropna().unique())
-    gekozen_soort = st.selectbox("Filter op voertuigsoort:", ["Alle"] + voertuigsoorten)
-
-    df_soort = df_cat.copy()
-    if gekozen_soort != "Alle":
-        df_soort = df_soort[df_soort["voertuigsoort"] == gekozen_soort]
-
-    df_soort_groep = (
-        df_soort
-        .groupby(["jaar_maand", "categorie"])
-        .size()
-        .reset_index(name="aantal")
-        .sort_values("jaar_maand")
-    )
-    df_soort_groep["cumulatief"] = df_soort_groep.groupby("categorie")["aantal"].cumsum()
-
-    fig_soort = px.area(
-        df_soort_groep,
-        x="jaar_maand",
-        y="cumulatief",
-        color="categorie",
-        color_discrete_map=kleur_map,
-        labels={
-            "jaar_maand": "Datum",
-            "cumulatief": "Cumulatief aantal",
-            "categorie": "Aandrijflijn"
-        },
-        template="plotly_dark",
-    )
-    fig_soort.update_layout(
-        paper_bgcolor="rgba(0,0,0,0)",
-        plot_bgcolor="rgba(15,23,42,1)",
-        font=dict(family="DM Sans", color="#94a3b8"),
-        legend_title="Aandrijflijn",
-        hovermode="x unified",
-        yaxis=dict(gridcolor="#1e293b", tickformat=","),
-        xaxis=dict(gridcolor="#1e293b"),
-        height=400,
-        margin=dict(t=20, b=20),
-    )
-    st.plotly_chart(fig_soort, width="stretch")
+    st.plotly_chart(fig_abs, use_container_width=True)
