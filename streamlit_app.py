@@ -6,6 +6,7 @@ import json
 import numpy as np
 import heapq
 import requests
+import plotly.express as px
 from shapely.geometry import Point
 from sklearn.neighbors import BallTree
 
@@ -616,7 +617,6 @@ with tab2:
 
 # ==================== TAB 3: VOERTUIGREGISTRATIES ====================
 with tab3:
-    import plotly.express as px
 
     st.markdown('<div class="algo-badge">RDW OPEN DATA</div>', unsafe_allow_html=True)
     st.markdown("### Aandeel voertuigen per aandrijflijn")
@@ -636,8 +636,9 @@ with tab3:
         else:
             return None
 
-    df_voer["categorie"] = df_voer["brandstof_omschrijving"].apply(categoriseer_brandstof)
-    df_cat = df_voer[df_voer["categorie"].notna()].copy()
+    df_cat = df_voer.copy()
+    df_cat["categorie"] = df_cat["brandstof_omschrijving"].apply(categoriseer_brandstof)
+    df_cat = df_cat[df_cat["categorie"].notna()].copy()
 
     # --- Groeperen en cumuleren ---
     df_groep = (
