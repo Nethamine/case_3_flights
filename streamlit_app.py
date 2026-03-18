@@ -887,7 +887,6 @@ with tab3:
     # --- Kleurmap ---
     kleur_map = {
         "🔋 Volledig elektrisch": "#22c55e",
-        "⚡ Plug-in hybride":     "#f59e0b",
         "⛽ Fossiel":              "#64748b",
     }
 
