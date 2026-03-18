@@ -327,9 +327,7 @@ def find_nearest_charger_dijkstra(user_lat, user_lon, df, tree, n_candidates=10)
 
 df, provincies_gdf = load_data()
 df_voer = load_voertuigen()
-st.write(df_voer.shape)
-st.write(df_voer.head())
-st.write(df_voer.dtypes)
+
 ball_tree = build_balltree(df)
 
 # ===== TABS =====
