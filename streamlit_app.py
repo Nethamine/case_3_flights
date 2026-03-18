@@ -13,7 +13,7 @@ from sklearn.neighbors import BallTree
 from thefuzz import process as fuzz_process
 
 # ==================== PAGINA INSTELLINGEN ==================================
-st.set_page_config(page_title="Laadpalen Nederland", page_icon="⚡", layout="wide")
+st.set_page_config(page_title="Groene Mobiliteit Nederland", page_icon="🌱", layout="wide")
 
 # ==================== CUSTOM CSS ===========================================
 st.markdown("""
