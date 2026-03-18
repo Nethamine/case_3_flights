@@ -198,11 +198,9 @@ def load_data():
 
 @st.cache_data
 def load_voertuigen():
-    df = pd.read_parquet('rdw_voertuigen.parquet')
-    df["datum_eerste_toelating"] = pd.to_datetime(
-        df["datum_eerste_toelating"].astype(str), format="%Y%m%d", errors="coerce"
-    )
-    df["jaar_maand"] = df["datum_eerste_toelating"].dt.to_period("M").dt.to_timestamp()
+    df = pd.read_csv('rdw_voertuigen_clean.csv')
+    df["datum_tenaamstelling"] = pd.to_datetime(df["datum_tenaamstelling"], errors="coerce")
+    df["jaar_maand"] = df["datum_tenaamstelling"].dt.to_period("M").dt.to_timestamp()
     return df
 
 @st.cache_resource
@@ -327,7 +325,6 @@ def find_nearest_charger_dijkstra(user_lat, user_lon, df, tree, n_candidates=10)
 
 df, provincies_gdf = load_data()
 df_voer = load_voertuigen()
-
 ball_tree = build_balltree(df)
 
 # ===== TABS =====
@@ -750,7 +747,7 @@ with tab3:
             "cumulatief": "Cumulatief aantal voertuigen",
             "categorie": "Aandrijflijn"
         },
-            template="plotly_dark",
+        template="plotly_dark",
     )
     fig_abs.update_traces(mode="lines", line_shape="spline", line=dict(width=2.5))
     fig_abs.update_layout(
@@ -767,3 +764,49 @@ with tab3:
         margin=dict(t=20, b=20),
     )
     st.plotly_chart(fig_abs, use_container_width=True)
+
+    # --- Voertuigsoort filter ---
+    st.divider()
+    st.markdown("### Uitsplitsing per voertuigsoort")
+
+    voertuigsoorten = sorted(df_voer["voertuigsoort"].dropna().unique())
+    gekozen_soort = st.selectbox("Filter op voertuigsoort:", ["Alle"] + voertuigsoorten)
+
+    df_soort = df_cat.copy()
+    if gekozen_soort != "Alle":
+        df_soort = df_soort[df_soort["voertuigsoort"] == gekozen_soort]
+
+    df_soort_groep = (
+        df_soort
+        .groupby(["jaar_maand", "categorie"])
+        .size()
+        .reset_index(name="aantal")
+        .sort_values("jaar_maand")
+    )
+    df_soort_groep["cumulatief"] = df_soort_groep.groupby("categorie")["aantal"].cumsum()
+
+    fig_soort = px.area(
+        df_soort_groep,
+        x="jaar_maand",
+        y="cumulatief",
+        color="categorie",
+        color_discrete_map=kleur_map,
+        labels={
+            "jaar_maand": "Datum",
+            "cumulatief": "Cumulatief aantal",
+            "categorie": "Aandrijflijn"
+        },
+        template="plotly_dark",
+    )
+    fig_soort.update_layout(
+        paper_bgcolor="rgba(0,0,0,0)",
+        plot_bgcolor="rgba(15,23,42,1)",
+        font=dict(family="DM Sans", color="#94a3b8"),
+        legend_title="Aandrijflijn",
+        hovermode="x unified",
+        yaxis=dict(gridcolor="#1e293b", tickformat=","),
+        xaxis=dict(gridcolor="#1e293b"),
+        height=400,
+        margin=dict(t=20, b=20),
+    )
+    st.plotly_chart(fig_soort, use_container_width=True)
