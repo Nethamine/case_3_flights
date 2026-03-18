@@ -1,3 +1,4 @@
+# ==================== IMPORTS =============================================
 import streamlit as st
 import pandas as pd
 import pydeck as pdk
@@ -11,10 +12,10 @@ from shapely.geometry import Point
 from sklearn.neighbors import BallTree
 from thefuzz import process as fuzz_process
 
-# ===== PAGINA INSTELLINGEN =====
+# ==================== PAGINA INSTELLINGEN ==================================
 st.set_page_config(page_title="Laadpalen Nederland", page_icon="⚡", layout="wide")
 
-# ===== CUSTOM CSS =====
+# ==================== CUSTOM CSS ===========================================
 st.markdown("""
 <style>
     @import url('https://fonts.googleapis.com/css2?family=Space+Mono:wght@400;700&family=DM+Sans:wght@300;400;600&display=swap');
@@ -188,7 +189,7 @@ st.markdown("""
 
 st.markdown("# ⚡ Laadpalen Nederland")
 
-# ===== DATA LADEN =====
+# ==================== DATA LADEN ============================================
 @st.cache_data
 def load_data():
     df = pd.read_csv('open_charge_map_NL.csv')
@@ -237,6 +238,7 @@ def build_balltree(_df):
     tree = BallTree(coords_rad, metric='haversine')
     return tree
 
+# ==================== HULPFUNCTIES: GEOCODING & AUTOCOMPLETE ===============
 def geocode_address(address: str):
     """Geocode address using Nominatim (free, no key needed)."""
     url = "https://nominatim.openstreetmap.org/search"
@@ -362,6 +364,7 @@ def fetch_suggestions(query: str):
 
     return unique[:6]
 
+# ==================== HULPFUNCTIES: ROUTING & DIJKSTRA =====================
 def _osrm_route(origin_lon, origin_lat, dest_lon, dest_lat):
     """
     Fetch a driving route from the public OSRM demo server.
@@ -450,15 +453,17 @@ def find_nearest_charger_dijkstra(user_lat, user_lon, df, tree, n_candidates=10)
     return best_charger_idx, road_dist_km, road_dur_min, road_coords
 
 
+# ==================== APP OPSTARTEN ========================================
 df, provincies_gdf = load_data()
 df_voer = load_voertuigen()
 ball_tree = build_balltree(df)
 
-# ===== TABS =====
+# ==================== TABS =================================================
 tab3, tab1, tab2 = st.tabs(["📈  Voertuigregistraties", "🗺️  Laadpalen Kaart", "🔍  Kortste Route (Dijkstra)"])
 
-# ==================== TAB 1: ORIGINAL MAP ====================
+# ==================== TAB 1: LAADPALEN KAART ===============================
 with tab1:
+    # ----- Filteropties -----
     col1, col2, col3 = st.columns([1, 2, 1])
 
     with col1:
@@ -482,6 +487,7 @@ with tab1:
 
     st.divider()
 
+    # ----- Kaartweergave -----
     if len(filtered_df) == 0:
         st.warning("Geen laadpalen gevonden voor deze selectie.")
     else:
@@ -507,6 +513,7 @@ with tab1:
             pickable=True,
         )
 
+        # ----- Provinciegrenzen laag (optioneel) -----
         layers = [scatter_layer]
 
         if filter_type == "Provincie" and gekozen and provincies_gdf is not None:
@@ -603,7 +610,7 @@ with tab2:
     # ----- Bepaal het uiteindelijke adres voor de zoekopdracht -----
     final_address = st.session_state["selected_address"] or st.session_state["address_input"]
 
-    # ---- Results ----
+    # ==================== ZOEKRESULTATEN ===================================
     if search_clicked and final_address.strip():
         with st.spinner("Locatie zoeken en route berekenen..."):
             user_lat, user_lon, display_name = geocode_address(final_address.strip())
@@ -622,7 +629,7 @@ with tab2:
 
             dur_str = f"{road_dur:.0f} min" if road_dur is not None else "N/A"
 
-            # --- Metrics ---
+            # ----- Metrics -----
             st.markdown(f"""
             <div class="metric-row">
                 <div class="metric-box">
@@ -659,7 +666,7 @@ with tab2:
             </div>
             """, unsafe_allow_html=True)
 
-            # --- Build map layers ---
+            # ----- Kaartlagen opbouwen -----
             all_chargers_map = df[['AddressInfo_Latitude', 'AddressInfo_Longitude',
                                    'AddressInfo_Title']].copy()
             all_chargers_map.columns = ['lat', 'lon', 'title']
@@ -801,6 +808,7 @@ with tab3:
         else:
             return None
 
+    # ----- Data categoriseren -----
     df_cat = df_voer.copy()
     df_cat["categorie"] = df_cat["brandstof_omschrijving"].apply(categoriseer_brandstof)
     df_cat = df_cat[df_cat["categorie"].notna()].copy()
@@ -817,18 +825,21 @@ with tab3:
     totaal_per_maand = df_groep.groupby("jaar_maand")["cumulatief"].transform("sum")
     df_groep["percentage"] = (df_groep["cumulatief"] / totaal_per_maand * 100).round(2)
 
+    # ----- Kleurschema -----
     kleur_map = {
         "🔋 Volledig elektrisch": "#22c55e",
         "⚡ Plug-in hybride":     "#f59e0b",
         "⛽ Fossiel":              "#64748b",
     }
 
+    # ----- Statistieken laatste maand -----
     laatste_maand = df_groep["jaar_maand"].max()
     laatste = df_groep[df_groep["jaar_maand"] == laatste_maand].set_index("categorie")
 
     def pct(cat):
         return f"{laatste.loc[cat, 'percentage']:.1f}%" if cat in laatste.index else "N/A"
 
+    # ----- KPI metrics -----
     col_a, col_b, col_c = st.columns(3)
     with col_a:
         st.markdown(f"""
@@ -860,6 +871,7 @@ with tab3:
 
     st.markdown("<div style='margin-top:24px'></div>", unsafe_allow_html=True)
 
+    # ----- Grafiek: aandeel per categorie -----
     if df_groep.empty:
         st.warning("Geen data beschikbaar.")
     else:
@@ -894,6 +906,7 @@ with tab3:
 
     st.divider()
 
+    # ----- Grafiek: absolute aantallen -----
     st.markdown("### Absolute registraties per aandrijflijn")
 
     fig_abs = px.line(
@@ -926,6 +939,7 @@ with tab3:
     st.plotly_chart(fig_abs, width="stretch")
 
     st.divider()
+    # ----- Grafiek: uitsplitsing per voertuigsoort -----
     st.markdown("### Uitsplitsing per voertuigsoort")
 
     voertuigsoorten = sorted(df_voer["voertuigsoort"].dropna().unique())
