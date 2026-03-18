@@ -1,6 +1,6 @@
-streamlit
+streamlit>=1.42.0
 pandas
-pydeck
+pydeck>=0.9.1
 geopandas
 shapely
 numpy
