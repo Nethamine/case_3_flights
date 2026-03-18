@@ -187,7 +187,7 @@ st.markdown("""
 </style>
 """, unsafe_allow_html=True)
 
-st.markdown("# ⚡ Laadpalen Nederland")
+st.markdown("# 🌱 LGroene Mobiliteit Nederland")
 
 # ==================== DATA LADEN ============================================
 @st.cache_data
