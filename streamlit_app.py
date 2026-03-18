@@ -228,13 +228,20 @@ def load_data():
 def load_voertuigen():
     df = pd.read_parquet('rdw_voertuigen.parquet')
     
-    # Probeer meerdere formaten
-    col = df["datum_eerste_toelating"].astype(str).str.strip()
-    df["datum_eerste_toelating"] = pd.to_datetime(col, infer_datetime_format=True, errors="coerce")
+    # Converteer integer of string naar datetime
+    df["datum_eerste_toelating"] = pd.to_datetime(
+        df["datum_eerste_toelating"].astype(str).str[:8],  # eerste 8 tekens voor de zekerheid
+        format="%Y%m%d",
+        errors="coerce"
+    )
     
     df["jaar_maand"] = df["datum_eerste_toelating"].dt.to_period("M").dt.to_timestamp()
+    
+    # Debug tijdelijk
+    st.write("Datum na conversie:", df["datum_eerste_toelating"].head(3).tolist())
+    st.write("jaar_maand na conversie:", df["jaar_maand"].head(3).tolist())
+    
     return df
-
 st.write("Datum raw sample:", pd.read_parquet('rdw_voertuigen.parquet')["datum_eerste_toelating"].head(3))   
 @st.cache_resource
 def build_balltree(_df):
