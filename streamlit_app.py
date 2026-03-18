@@ -226,12 +226,15 @@ def load_data():
 
 @st.cache_data
 def load_voertuigen():
-    df = pd.read_parquet('rdw_voertuigen.parquet')
-    df["datum_eerste_toelating"] = pd.to_datetime(
-        df["datum_eerste_toelating"].astype(str), format="%Y%m%d", errors="coerce"
-    )
-    df["jaar_maand"] = df["datum_eerste_toelating"].dt.to_period("M").dt.to_timestamp()
-    return df
+    try:
+        import os
+        st.write("Bestanden in map:", os.listdir("."))
+        df = pd.read_parquet('rdw_voertuigen.parquet')
+        st.write("✓ Geladen:", df.shape)
+        return df
+    except Exception as e:
+        st.error(f"Fout: {e}")
+        return pd.DataFrame(columns=["datum_eerste_toelating", "brandstof_omschrijving"])
 
 @st.cache_resource
 def build_balltree(_df):
