@@ -49,7 +49,19 @@ def load_voertuigen():
     return df
 df, provincies_gdf = load_data()
 df_voer = load_voertuigen()
+# Hoeveel unieke kentekens zitten in de data?
+print(df_voer.shape[0])
 
+# Wat is het bereik van de data?
+print(df_voer["jaar_maand"].min(), df_voer["jaar_maand"].max())
+
+# Hoeveel elektrische auto's zitten er in totaal?
+print(df_voer[df_voer["brandstof_omschrijving"] == "Elektriciteit"].shape[0])
+
+# Zijn het unieke kentekens of transacties?
+if "kenteken" in df_voer.columns:
+    print("Unieke kentekens:", df_voer["kenteken"].nunique())
+    print("Totaal rijen:", df_voer.shape[0])
 # ===== FILTERS OP PAGINA =====
 col1, col2, col3 = st.columns([1, 2, 1])
 
