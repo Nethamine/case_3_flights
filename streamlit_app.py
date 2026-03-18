@@ -253,8 +253,8 @@ def geocode_address(address: str):
         pass
     return None, None, None
 
-# Bekende Nederlandse plaatsnamen voor fuzzy spelling-correctie
-NL_PLAATSNAMEN = [
+# ── Fallback: basislijst als de CBS API onbereikbaar is ─────────────────────
+_NL_PLAATSNAMEN_FALLBACK = [
     "Amsterdam", "Rotterdam", "Den Haag", "Utrecht", "Eindhoven", "Tilburg",
     "Groningen", "Almere", "Breda", "Nijmegen", "Enschede", "Haarlem",
     "Arnhem", "Zaanstad", "Amersfoort", "Apeldoorn", "Den Bosch", "Hoofddorp",
@@ -264,6 +264,54 @@ NL_PLAATSNAMEN = [
     "Vlaardingen", "Schiedam", "Spijkenisse", "Lelystad", "Bergen op Zoom",
     "Hoorn", "Velsen", "Ede", "Gouda", "Westland", "Meierijstad",
 ]
+
+@st.cache_data(ttl=86400, show_spinner=False)
+def load_nl_plaatsnamen() -> list[str]:
+    """
+    Laadt alle Nederlandse woonplaatsnamen via de CBS OData API (dataset 86097NED).
+    Bevat ~2500 officiële BAG-woonplaatsen. Gecached voor 24 uur.
+    Valt terug op de statische fallback-lijst als de API onbereikbaar is.
+
+    Endpoint: https://opendata.cbs.nl/ODataApi/OData/86097NED/WoonplaatsenPerGemeente
+    Veld:     WoonplaatsNaam
+    """
+    url = "https://opendata.cbs.nl/ODataApi/OData/86097NED/WoonplaatsenPerGemeente"
+    headers = {"User-Agent": "LaadpalenNL-StreamlitApp/1.0", "Accept": "application/json"}
+    plaatsnamen = []
+    try:
+        # CBS OData geeft maximaal 10 000 records per request terug —
+        # gebruik $skip-paginering om alle ~2500 woonplaatsen op te halen.
+        skip = 0
+        page_size = 1000
+        while True:
+            params = {
+                "$format": "json",
+                "$select": "WoonplaatsNaam",
+                "$top": page_size,
+                "$skip": skip,
+            }
+            r = requests.get(url, params=params, headers=headers, timeout=10)
+            r.raise_for_status()
+            data = r.json().get("value", [])
+            if not data:
+                break
+            for item in data:
+                naam = item.get("WoonplaatsNaam", "").strip()
+                if naam:
+                    plaatsnamen.append(naam)
+            if len(data) < page_size:
+                break
+            skip += page_size
+
+        # Dedupliceer en sorteer
+        plaatsnamen = sorted(set(plaatsnamen))
+        return plaatsnamen if plaatsnamen else _NL_PLAATSNAMEN_FALLBACK
+
+    except Exception:
+        return _NL_PLAATSNAMEN_FALLBACK
+
+# Laad de plaatsnamen eenmalig bij app-start (gecached)
+NL_PLAATSNAMEN = load_nl_plaatsnamen()
 
 @st.cache_data(ttl=300, show_spinner=False)
 def fetch_suggestions(query: str):
@@ -545,7 +593,7 @@ with tab1:
             height=1000
         )
 
-# ==================== TAB 2: DIJKSTRA ====================
+# ==================== TAB 2: DIJKSTRA =====================================
 with tab2:
     st.markdown('<div class="algo-badge">DIJKSTRA\'S ALGORITHM</div>', unsafe_allow_html=True)
     st.markdown("### Vind de dichtstbijzijnde laadpaal")
@@ -610,7 +658,7 @@ with tab2:
     # ----- Bepaal het uiteindelijke adres voor de zoekopdracht -----
     final_address = st.session_state["selected_address"] or st.session_state["address_input"]
 
-    # ==================== ZOEKRESULTATEN ===================================
+    # ----- Zoekresultaten -----
     if search_clicked and final_address.strip():
         with st.spinner("Locatie zoeken en route berekenen..."):
             user_lat, user_lon, display_name = geocode_address(final_address.strip())
@@ -788,7 +836,7 @@ with tab2:
         </div>
         """, unsafe_allow_html=True)
 
-# ==================== TAB 3: VOERTUIGREGISTRATIES ====================
+# ==================== TAB 3: VOERTUIGREGISTRATIES =========================
 with tab3:
 
     st.markdown('<div class="algo-badge">RDW OPEN DATA</div>', unsafe_allow_html=True)
