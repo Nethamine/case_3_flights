@@ -188,7 +188,12 @@ st.markdown("""
 """, unsafe_allow_html=True)
 
 st.markdown("# 🌱 Groene Mobiliteit Nederland")
-
+st.write("Rijen:", df_voer.shape)
+st.write("Kolommen:", df_voer.columns.tolist())
+st.write("Dtypes:", df_voer.dtypes)
+st.write("Head:", df_voer.head(3))
+st.write("Brandstof uniek:", df_voer["brandstof_omschrijving"].unique()[:10])
+st.write("Datum sample:", df_voer["datum_eerste_toelating"].head(5))
 # ==================== DATA LADEN ============================================
 @st.cache_data
 def load_data():
