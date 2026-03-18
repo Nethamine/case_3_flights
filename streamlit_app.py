@@ -196,6 +196,13 @@ def load_data():
         df['Provincie'] = 'Onbekend'
         return df, None
 
+@st.cache_data
+def load_voertuigen():
+    df = pd.read_csv('rdw_voertuigen_clean.csv')
+    df["datum_tenaamstelling"] = pd.to_datetime(df["datum_tenaamstelling"], errors="coerce")
+    df["jaar_maand"] = df["datum_tenaamstelling"].dt.to_period("M").dt.to_timestamp()
+    return df
+
 @st.cache_resource
 def build_balltree(_df):
     """Build a BallTree spatial index over all charging station coordinates."""
@@ -317,10 +324,11 @@ def find_nearest_charger_dijkstra(user_lat, user_lon, df, tree, n_candidates=10)
 
 
 df, provincies_gdf = load_data()
+df_voer = load_voertuigen()
 ball_tree = build_balltree(df)
 
 # ===== TABS =====
-tab1, tab2 = st.tabs(["🗺️  Laadpalen Kaart", "🔍  Kortste Route (Dijkstra)"])
+tab1, tab2, tab3 = st.tabs(["🗺️  Laadpalen Kaart", "🔍  Kortste Route (Dijkstra)", "📈  Voertuigregistraties"])
 
 # ==================== TAB 1: ORIGINAL MAP ====================
 with tab1:
@@ -605,3 +613,200 @@ with tab2:
             </p>
         </div>
         """, unsafe_allow_html=True)
+
+# ==================== TAB 3: VOERTUIGREGISTRATIES ====================
+with tab3:
+    import plotly.express as px
+
+    st.markdown('<div class="algo-badge">RDW OPEN DATA</div>', unsafe_allow_html=True)
+    st.markdown("### Aandeel voertuigen per aandrijflijn")
+    st.markdown("Cumulatief aandeel van het Nederlandse wagenpark per brandstofcategorie over de tijd.")
+
+    # --- Categorisering ---
+    def categoriseer_brandstof(brandstof):
+        if pd.isna(brandstof):
+            return None
+        b = brandstof.strip().lower()
+        if b == "elektriciteit":
+            return "🔋 Volledig elektrisch"
+        elif b in ["benzine/elektriciteit", "diesel/elektriciteit"]:
+            return "⚡ Plug-in hybride"
+        elif b in ["benzine", "diesel", "lpg", "cng", "waterstof", "overig"]:
+            return "⛽ Fossiel"
+        else:
+            return None
+
+    df_voer["categorie"] = df_voer["brandstof_omschrijving"].apply(categoriseer_brandstof)
+    df_cat = df_voer[df_voer["categorie"].notna()].copy()
+
+    # --- Groeperen en cumuleren ---
+    df_groep = (
+        df_cat
+        .groupby(["jaar_maand", "categorie"])
+        .size()
+        .reset_index(name="aantal")
+        .sort_values("jaar_maand")
+    )
+    df_groep["cumulatief"] = df_groep.groupby("categorie")["aantal"].cumsum()
+
+    # --- Percentage t.o.v. totaal lopend bestand per maand ---
+    totaal_per_maand = df_groep.groupby("jaar_maand")["cumulatief"].transform("sum")
+    df_groep["percentage"] = (df_groep["cumulatief"] / totaal_per_maand * 100).round(2)
+
+    # --- Kleurmap ---
+    kleur_map = {
+        "🔋 Volledig elektrisch": "#22c55e",
+        "⚡ Plug-in hybride":     "#f59e0b",
+        "⛽ Fossiel":              "#64748b",
+    }
+
+    # --- Snelle statistieken bovenaan ---
+    laatste_maand = df_groep["jaar_maand"].max()
+    laatste = df_groep[df_groep["jaar_maand"] == laatste_maand].set_index("categorie")
+
+    def pct(cat):
+        return f"{laatste.loc[cat, 'percentage']:.1f}%" if cat in laatste.index else "N/A"
+
+    col_a, col_b, col_c = st.columns(3)
+    with col_a:
+        st.markdown(f"""
+        <div class="metric-box" style="background:#0f172a; border:1px solid #22c55e; border-radius:10px;
+             padding:16px; text-align:center;">
+            <div class="label" style="font-size:11px; color:#64748b; text-transform:uppercase;
+                 letter-spacing:1px; font-family:'Space Mono',monospace;">Volledig elektrisch</div>
+            <div class="value" style="font-size:28px; font-weight:700; color:#22c55e;
+                 font-family:'Space Mono',monospace;">{pct("🔋 Volledig elektrisch")}</div>
+        </div>""", unsafe_allow_html=True)
+    with col_b:
+        st.markdown(f"""
+        <div class="metric-box" style="background:#0f172a; border:1px solid #f59e0b; border-radius:10px;
+             padding:16px; text-align:center;">
+            <div class="label" style="font-size:11px; color:#64748b; text-transform:uppercase;
+                 letter-spacing:1px; font-family:'Space Mono',monospace;">Plug-in hybride</div>
+            <div class="value" style="font-size:28px; font-weight:700; color:#f59e0b;
+                 font-family:'Space Mono',monospace;">{pct("⚡ Plug-in hybride")}</div>
+        </div>""", unsafe_allow_html=True)
+    with col_c:
+        st.markdown(f"""
+        <div class="metric-box" style="background:#0f172a; border:1px solid #64748b; border-radius:10px;
+             padding:16px; text-align:center;">
+            <div class="label" style="font-size:11px; color:#64748b; text-transform:uppercase;
+                 letter-spacing:1px; font-family:'Space Mono',monospace;">Fossiel</div>
+            <div class="value" style="font-size:28px; font-weight:700; color:#94a3b8;
+                 font-family:'Space Mono',monospace;">{pct("⛽ Fossiel")}</div>
+        </div>""", unsafe_allow_html=True)
+
+    st.markdown("<div style='margin-top:24px'></div>", unsafe_allow_html=True)
+
+    # --- Lijndiagram aandeel ---
+    if df_groep.empty:
+        st.warning("Geen data beschikbaar.")
+    else:
+        fig_aandeel = px.line(
+            df_groep,
+            x="jaar_maand",
+            y="percentage",
+            color="categorie",
+            color_discrete_map=kleur_map,
+            labels={
+                "jaar_maand": "Datum",
+                "percentage": "Aandeel (%)",
+                "categorie": "Aandrijflijn"
+            },
+            template="plotly_dark",
+        )
+        fig_aandeel.update_traces(mode="lines", line_shape="spline", line=dict(width=2.5))
+        fig_aandeel.update_layout(
+            paper_bgcolor="rgba(0,0,0,0)",
+            plot_bgcolor="rgba(15,23,42,1)",
+            font=dict(family="DM Sans", color="#94a3b8"),
+            legend_title="Aandrijflijn",
+            xaxis_title="Datum",
+            yaxis_title="Aandeel van lopend bestand (%)",
+            hovermode="x unified",
+            yaxis=dict(ticksuffix="%", gridcolor="#1e293b"),
+            xaxis=dict(gridcolor="#1e293b"),
+            height=460,
+            margin=dict(t=20, b=20),
+        )
+        st.plotly_chart(fig_aandeel, use_container_width=True)
+
+    st.divider()
+
+    # --- Absolute aantallen per categorie ---
+    st.markdown("### Absolute registraties per aandrijflijn")
+
+    fig_abs = px.line(
+        df_groep,
+        x="jaar_maand",
+        y="cumulatief",
+        color="categorie",
+        color_discrete_map=kleur_map,
+        labels={
+            "jaar_maand": "Datum",
+            "cumulatief": "Cumulatief aantal voertuigen",
+            "categorie": "Aandrijflijn"
+        },
+        template="plotly_dark",
+    )
+    fig_abs.update_traces(mode="lines", line_shape="spline", line=dict(width=2.5))
+    fig_abs.update_layout(
+        paper_bgcolor="rgba(0,0,0,0)",
+        plot_bgcolor="rgba(15,23,42,1)",
+        font=dict(family="DM Sans", color="#94a3b8"),
+        legend_title="Aandrijflijn",
+        xaxis_title="Datum",
+        yaxis_title="Cumulatief aantal",
+        hovermode="x unified",
+        yaxis=dict(gridcolor="#1e293b", tickformat=","),
+        xaxis=dict(gridcolor="#1e293b"),
+        height=420,
+        margin=dict(t=20, b=20),
+    )
+    st.plotly_chart(fig_abs, use_container_width=True)
+
+    # --- Voertuigsoort filter ---
+    st.divider()
+    st.markdown("### Uitsplitsing per voertuigsoort")
+
+    voertuigsoorten = sorted(df_voer["voertuigsoort"].dropna().unique())
+    gekozen_soort = st.selectbox("Filter op voertuigsoort:", ["Alle"] + voertuigsoorten)
+
+    df_soort = df_cat.copy()
+    if gekozen_soort != "Alle":
+        df_soort = df_soort[df_soort["voertuigsoort"] == gekozen_soort]
+
+    df_soort_groep = (
+        df_soort
+        .groupby(["jaar_maand", "categorie"])
+        .size()
+        .reset_index(name="aantal")
+        .sort_values("jaar_maand")
+    )
+    df_soort_groep["cumulatief"] = df_soort_groep.groupby("categorie")["aantal"].cumsum()
+
+    fig_soort = px.area(
+        df_soort_groep,
+        x="jaar_maand",
+        y="cumulatief",
+        color="categorie",
+        color_discrete_map=kleur_map,
+        labels={
+            "jaar_maand": "Datum",
+            "cumulatief": "Cumulatief aantal",
+            "categorie": "Aandrijflijn"
+        },
+        template="plotly_dark",
+    )
+    fig_soort.update_layout(
+        paper_bgcolor="rgba(0,0,0,0)",
+        plot_bgcolor="rgba(15,23,42,1)",
+        font=dict(family="DM Sans", color="#94a3b8"),
+        legend_title="Aandrijflijn",
+        hovermode="x unified",
+        yaxis=dict(gridcolor="#1e293b", tickformat=","),
+        xaxis=dict(gridcolor="#1e293b"),
+        height=400,
+        margin=dict(t=20, b=20),
+    )
+    st.plotly_chart(fig_soort, use_container_width=True)
