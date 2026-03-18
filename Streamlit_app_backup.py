@@ -41,8 +41,14 @@ def load_data():
         pd.DataFrame(gdf.drop(columns=['geometry', 'index_right'], errors='ignore')),
         provincies_gdf
     )
-
+@st.cache_data
+def load_voertuigen():
+    df = pd.read_csv('rdw_voertuigen_clean.csv')
+    df["datum_tenaamstelling"] = pd.to_datetime(df["datum_tenaamstelling"], errors="coerce")
+    df["jaar_maand"] = df["datum_tenaamstelling"].dt.to_period("M").dt.to_timestamp()
+    return df
 df, provincies_gdf = load_data()
+df_voer = load_voertuigen()
 
 # ===== FILTERS OP PAGINA =====
 col1, col2, col3 = st.columns([1, 2, 1])
@@ -137,3 +143,74 @@ else:
         use_container_width=True,
         height=1000
     )
+# ===== VOERTUIGREGISTRATIES GRAFIEK =====
+st.divider()
+st.subheader("📈 Aandeel voertuigen per aandrijflijn")
+
+# --- Categorisering ---
+def categoriseer_brandstof(brandstof):
+    if pd.isna(brandstof):
+        return None
+    b = brandstof.strip().lower()
+    if b == "elektriciteit":
+        return "🔋 Volledig elektrisch"
+    elif b in ["benzine/elektriciteit", "diesel/elektriciteit"]:
+        return "⚡ Plug-in hybride"
+    elif b in ["benzine", "diesel", "lpg", "cng", "waterstof", "overig"]:
+        return "⛽ Fossiel"
+    else:
+        return None  # onbekende typen uitsluiten
+
+df_voer["categorie"] = df_voer["brandstof_omschrijving"].apply(categoriseer_brandstof)
+df_cat = df_voer[df_voer["categorie"].notna()].copy()
+
+# --- Groeperen en cumuleren ---
+df_groep = (
+    df_cat
+    .groupby(["jaar_maand", "categorie"])
+    .size()
+    .reset_index(name="aantal")
+    .sort_values("jaar_maand")
+)
+df_groep["cumulatief"] = df_groep.groupby("categorie")["aantal"].cumsum()
+
+# --- Percentage t.o.v. totaal lopend bestand per maand ---
+totaal_per_maand = df_groep.groupby("jaar_maand")["cumulatief"].transform("sum")
+df_groep["percentage"] = (df_groep["cumulatief"] / totaal_per_maand * 100).round(2)
+
+# --- Vaste kleur per categorie ---
+kleur_map = {
+    "🔋 Volledig elektrisch": "#2ecc71",
+    "⚡ Plug-in hybride":     "#f39c12",
+    "⛽ Fossiel":              "#7f8c8d",
+}
+
+# --- Plot ---
+if df_groep.empty:
+    st.warning("Geen data beschikbaar.")
+else:
+    import plotly.express as px
+
+    fig = px.line(
+        df_groep,
+        x="jaar_maand",
+        y="percentage",
+        color="categorie",
+        color_discrete_map=kleur_map,
+        labels={
+            "jaar_maand": "Datum",
+            "percentage": "Aandeel (%)",
+            "categorie": "Aandrijflijn"
+        },
+        template="plotly_white"
+    )
+    fig.update_traces(mode="lines", line_shape="spline", line=dict(width=2.5))
+    fig.update_layout(
+        legend_title="Aandrijflijn",
+        xaxis_title="Datum",
+        yaxis_title="Aandeel van lopend bestand (%)",
+        hovermode="x unified",
+        yaxis=dict(ticksuffix="%"),
+        height=500
+    )
+    st.plotly_chart(fig, use_container_width=True)
