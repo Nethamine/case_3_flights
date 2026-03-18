@@ -514,6 +514,10 @@ def find_nearest_charger_dijkstra(user_lat, user_lon, df, tree, n_candidates=10)
 # ==================== APP OPSTARTEN ========================================
 df, provincies_gdf = load_data()
 df_voer = load_voertuigen()
+st.write("Kolommen:", df_voer.columns.tolist())
+st.write("jaar_maand sample:", df_voer["jaar_maand"].head(5))
+st.write("brandstof uniek:", df_voer["brandstof_omschrijving"].unique()[:10])
+st.write("categorie uniek:", df_voer["categorie"].unique() if "categorie" in df_voer.columns else "kolom bestaat niet")
 ball_tree = build_balltree(df)
 
 # ==================== TABS =================================================
