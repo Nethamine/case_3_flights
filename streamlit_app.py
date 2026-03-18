@@ -226,21 +226,16 @@ def load_data():
 
 @st.cache_data
 def load_voertuigen():
-    try:
-        df = pd.read_parquet('rdw_voertuigen.parquet')
-        
-        # Datum omzetten
-        df["datum_eerste_toelating"] = pd.to_datetime(
-            df["datum_eerste_toelating"].astype(str), 
-            format="%Y%m%d", 
-            errors="coerce"
-        )
-        df["jaar_maand"] = df["datum_eerste_toelating"].dt.to_period("M").dt.to_timestamp()
-        
-        return df
-    except Exception as e:
-        st.error(f"Fout: {e}")
-        return pd.DataFrame(columns=["datum_eerste_toelating", "brandstof_omschrijving", "jaar_maand"])
+    df = pd.read_parquet('rdw_voertuigen.parquet')
+    
+    # Probeer meerdere formaten
+    col = df["datum_eerste_toelating"].astype(str).str.strip()
+    df["datum_eerste_toelating"] = pd.to_datetime(col, infer_datetime_format=True, errors="coerce")
+    
+    df["jaar_maand"] = df["datum_eerste_toelating"].dt.to_period("M").dt.to_timestamp()
+    return df
+
+st.write("Datum raw sample:", pd.read_parquet('rdw_voertuigen.parquet')["datum_eerste_toelating"].head(3))   
 @st.cache_resource
 def build_balltree(_df):
     """Build a BallTree spatial index over all charging station coordinates."""
@@ -860,14 +855,14 @@ with tab3:
 
     # --- Categorisering ---
     def categoriseer_brandstof(brandstof):
-        if pd.isna(brandstof):
+        if pd.isna(brandstof) or brandstof is None:
             return None
-        b = brandstof.strip().lower()
+        b = str(brandstof).strip().lower()
         if b == "elektriciteit":
             return "🔋 Volledig elektrisch"
-        elif b in ["benzine/elektriciteit", "diesel/elektriciteit"]:
+        elif "elektriciteit" in b and ("benzine" in b or "diesel" in b):
             return "⚡ Plug-in hybride"
-        elif b in ["benzine", "diesel", "lpg", "cng", "waterstof", "overig"]:
+        elif b in ["benzine", "diesel", "lpg", "cng", "waterstof", "alcohol", "overig"]:
             return "⛽ Fossiel"
         else:
             return None
