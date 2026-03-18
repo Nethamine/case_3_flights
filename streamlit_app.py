@@ -507,7 +507,7 @@ df_voer = load_voertuigen()
 ball_tree = build_balltree(df)
 
 # ==================== TABS =================================================
-tab3, tab1, tab2 = st.tabs(["📈  Voertuigregistraties", "🗺️  Laadpalen Kaart", "🔍  Kortste Route (Dijkstra)"])
+tab3, tab1, tab2 = st.tabs(["📈  Voertuigregistraties", "🗺️  Laadpalen Kaart", "🔍  Laadpalen dichtbij mij"])
 
 # ==================== TAB 1: LAADPALEN KAART ===============================
 with tab1:
