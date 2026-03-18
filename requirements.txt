@@ -1,7 +1,8 @@
 streamlit
 pandas
 pydeck
-requests
 geopandas
 shapely
-plotly
+numpy
+scikit-learn
+requests
