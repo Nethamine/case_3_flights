@@ -188,12 +188,7 @@ st.markdown("""
 """, unsafe_allow_html=True)
 
 st.markdown("# 🌱 Groene Mobiliteit Nederland")
-st.write("Rijen:", df_voer.shape)
-st.write("Kolommen:", df_voer.columns.tolist())
-st.write("Dtypes:", df_voer.dtypes)
-st.write("Head:", df_voer.head(3))
-st.write("Brandstof uniek:", df_voer["brandstof_omschrijving"].unique()[:10])
-st.write("Datum sample:", df_voer["datum_eerste_toelating"].head(5))
+
 # ==================== DATA LADEN ============================================
 @st.cache_data
 def load_data():
@@ -244,7 +239,12 @@ def build_balltree(_df):
     coords_rad = np.radians(_df[['AddressInfo_Latitude', 'AddressInfo_Longitude']].values)
     tree = BallTree(coords_rad, metric='haversine')
     return tree
-
+st.write("Rijen:", df_voer.shape)
+st.write("Kolommen:", df_voer.columns.tolist())
+st.write("Dtypes:", df_voer.dtypes)
+st.write("Head:", df_voer.head(3))
+st.write("Brandstof uniek:", df_voer["brandstof_omschrijving"].unique()[:10])
+st.write("Datum sample:", df_voer["datum_eerste_toelating"].head(5))
 # ==================== HULPFUNCTIES: GEOCODING & AUTOCOMPLETE ===============
 def geocode_address(address: str):
     """Geocode address using Nominatim (free, no key needed)."""
