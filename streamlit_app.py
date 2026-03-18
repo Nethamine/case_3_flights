@@ -187,7 +187,7 @@ st.markdown("""
 </style>
 """, unsafe_allow_html=True)
 
-st.markdown("# 🌱 LGroene Mobiliteit Nederland")
+st.markdown("# 🌱 Groene Mobiliteit Nederland")
 
 # ==================== DATA LADEN ============================================
 @st.cache_data
