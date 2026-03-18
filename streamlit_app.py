@@ -237,12 +237,9 @@ def load_voertuigen():
     
     df["jaar_maand"] = df["datum_eerste_toelating"].dt.to_period("M").dt.to_timestamp()
     
-    # Debug tijdelijk
-    st.write("Datum na conversie:", df["datum_eerste_toelating"].head(3).tolist())
-    st.write("jaar_maand na conversie:", df["jaar_maand"].head(3).tolist())
-    
+
     return df
-st.write("Datum raw sample:", pd.read_parquet('rdw_voertuigen.parquet')["datum_eerste_toelating"].head(3))   
+  
 @st.cache_resource
 def build_balltree(_df):
     """Build a BallTree spatial index over all charging station coordinates."""
@@ -876,6 +873,7 @@ with tab3:
 
     df_voer["categorie"] = df_voer["brandstof_omschrijving"].apply(categoriseer_brandstof)
     df_cat = df_voer[df_voer["categorie"].notna()].copy()
+    df_cat = df_cat[df_cat["jaar_maand"] >= "2005-01-01"]
 
     # --- Groeperen en cumuleren ---
     df_groep = (
