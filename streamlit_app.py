@@ -929,20 +929,42 @@ with tab3:
     st.markdown("<div style='margin-top:24px'></div>", unsafe_allow_html=True)
 
     # --- Lijndiagram aandeel ---
-    # --- Slider voor tijdsbereik ---
+    # --- Slider jaar ---
     min_datum = df_groep["jaar_maand"].min().year
     max_datum = df_groep["jaar_maand"].max().year
 
     jaar_range = st.slider(
-        "Selecteer tijdsbereik:",
+        "Selecteer tijdsbereik (jaren):",
         min_value=min_datum,
         max_value=max_datum,
         value=(min_datum, max_datum)
     )
 
-    df_groep_gefilterd = df_groep[
+# Filter eerst op jaren
+    df_groep_jaar = df_groep[
         (df_groep["jaar_maand"].dt.year >= jaar_range[0]) &
         (df_groep["jaar_maand"].dt.year <= jaar_range[1])
+    ]
+
+# --- Slider maand (op basis van gekozen jaren) ---
+    min_maand = df_groep_jaar["jaar_maand"].min()
+    max_maand = df_groep_jaar["jaar_maand"].max()
+
+    maanden = pd.date_range(min_maand, max_maand, freq="MS").tolist()
+    maand_labels = [d.strftime("%b %Y") for d in maanden]
+
+    col_start, col_end = st.columns(2)
+    with col_start:
+        start_maand = st.selectbox("Van maand:", maand_labels, index=0)
+    with col_end:
+        eind_maand = st.selectbox("Tot maand:", maand_labels, index=len(maand_labels)-1)
+
+    start_dt = pd.to_datetime(start_maand, format="%b %Y")
+    eind_dt = pd.to_datetime(eind_maand, format="%b %Y")
+
+    df_groep_gefilterd = df_groep_jaar[
+        (df_groep_jaar["jaar_maand"] >= start_dt) &
+        (df_groep_jaar["jaar_maand"] <= eind_dt)
     ]
     if df_groep.empty:
         st.warning("Geen data beschikbaar.")
