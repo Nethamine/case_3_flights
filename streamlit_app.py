@@ -861,7 +861,7 @@ with tab3:
         b = str(brandstof).strip().lower()
         if b == "elektriciteit":
             return "🔋 Volledig elektrisch"
-        elif "elektriciteit" in b and ("benzine" in b or "diesel" in b):
+        elif b in ["benzine", "diesel", "lpg", "cng", "waterstof", "alcohol", "overig"]:
             return "⛽ Fossiel"
         else:
             return None
