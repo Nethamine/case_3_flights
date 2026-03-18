@@ -9,6 +9,7 @@ import requests
 import plotly.express as px
 from shapely.geometry import Point
 from sklearn.neighbors import BallTree
+from thefuzz import process as fuzz_process
 
 # ===== PAGINA INSTELLINGEN =====
 st.set_page_config(page_title="Laadpalen Nederland", page_icon="⚡", layout="wide")
@@ -250,26 +251,116 @@ def geocode_address(address: str):
         pass
     return None, None, None
 
+# Bekende Nederlandse plaatsnamen voor fuzzy spelling-correctie
+NL_PLAATSNAMEN = [
+    "Amsterdam", "Rotterdam", "Den Haag", "Utrecht", "Eindhoven", "Tilburg",
+    "Groningen", "Almere", "Breda", "Nijmegen", "Enschede", "Haarlem",
+    "Arnhem", "Zaanstad", "Amersfoort", "Apeldoorn", "Den Bosch", "Hoofddorp",
+    "Maastricht", "Leiden", "Dordrecht", "Zoetermeer", "Zwolle", "Deventer",
+    "Delft", "Alkmaar", "Venlo", "Leeuwarden", "Sittard", "Emmen",
+    "Helmond", "Hilversum", "Hengelo", "Purmerend", "Oss", "Roosendaal",
+    "Vlaardingen", "Schiedam", "Spijkenisse", "Lelystad", "Bergen op Zoom",
+    "Hoorn", "Velsen", "Ede", "Gouda", "Westland", "Meierijstad",
+]
+
 @st.cache_data(ttl=300, show_spinner=False)
 def fetch_suggestions(query: str):
-    """Fetch address suggestions from Nominatim — cached 5 min per unique query."""
-    if len(query.strip()) < 3:
+    """
+    Fetch typo-tolerant address suggestions.
+    Strategie:
+      1. Fuzzy-match de invoer tegen bekende NL plaatsnamen — als een stad
+         duidelijk herkend wordt (score >= 75), vervang of vul aan in de query.
+      2. Probeer Photon API (Komoot) — tolerant voor typefouten, snel.
+      3. Val terug op Nominatim als Photon niks oplevert.
+    """
+    q = query.strip()
+    if len(q) < 3:
         return []
-    url = "https://nominatim.openstreetmap.org/search"
-    params = {
-        "q": query + ", Netherlands",
-        "format": "json",
-        "limit": 6,
-        "addressdetails": 0,
-        "countrycodes": "nl",
-    }
-    headers = {"User-Agent": "LaadpalenNL-StreamlitApp/1.0"}
-    try:
-        r = requests.get(url, params=params, headers=headers, timeout=4)
-        results = r.json()
-        return [res["display_name"] for res in results]
-    except Exception:
-        return []
+
+    # Stap 1: fuzzy-correct bekende plaatsnamen in de query
+    corrected_q = q
+    words = q.split()
+    corrected_words = []
+    for word in words:
+        if len(word) >= 4:
+            match, score = fuzz_process.extractOne(word, NL_PLAATSNAMEN)
+            if score >= 75:
+                corrected_words.append(match)
+            else:
+                corrected_words.append(word)
+        else:
+            corrected_words.append(word)
+    corrected_q = " ".join(corrected_words)
+
+    # Stap 2: Photon API (typo-tolerant, geen key nodig)
+    def _photon(search_q: str):
+        url = "https://photon.komoot.io/api/"
+        params = {"q": search_q, "limit": 6, "lang": "nl", "bbox": "3.2,50.7,7.3,53.6"}
+        headers = {"User-Agent": "LaadpalenNL-StreamlitApp/1.0"}
+        try:
+            r = requests.get(url, params=params, headers=headers, timeout=5)
+            features = r.json().get("features", [])
+            results = []
+            for f in features:
+                props = f.get("properties", {})
+                # Alleen Nederlandse resultaten
+                if props.get("countrycode", "").upper() != "NL":
+                    continue
+                parts = [
+                    props.get("name", ""),
+                    props.get("street", ""),
+                    props.get("housenumber", ""),
+                    props.get("city", "") or props.get("town", "") or props.get("village", ""),
+                    props.get("state", ""),
+                    "Nederland",
+                ]
+                label = ", ".join(p for p in parts if p)
+                if label:
+                    results.append(label)
+            return results
+        except Exception:
+            return []
+
+    # Stap 3: Nominatim fallback
+    def _nominatim(search_q: str):
+        url = "https://nominatim.openstreetmap.org/search"
+        params = {
+            "q": search_q + ", Netherlands",
+            "format": "json",
+            "limit": 6,
+            "addressdetails": 0,
+            "countrycodes": "nl",
+        }
+        headers = {"User-Agent": "LaadpalenNL-StreamlitApp/1.0"}
+        try:
+            r = requests.get(url, params=params, headers=headers, timeout=5)
+            return [res["display_name"] for res in r.json()]
+        except Exception:
+            return []
+
+    # Probeer eerst met gecorrigeerde query via Photon
+    results = _photon(corrected_q)
+
+    # Als gecorrigeerde query niks geeft, probeer originele invoer via Photon
+    if not results and corrected_q != q:
+        results = _photon(q)
+
+    # Nog steeds niks? Nominatim als laatste redmiddel
+    if not results:
+        results = _nominatim(corrected_q)
+    if not results and corrected_q != q:
+        results = _nominatim(q)
+
+    # Dedupliceer terwijl volgorde bewaard blijft
+    seen = set()
+    unique = []
+    for r in results:
+        key = r.lower()
+        if key not in seen:
+            seen.add(key)
+            unique.append(r)
+
+    return unique[:6]
 
 def _osrm_route(origin_lon, origin_lat, dest_lon, dest_lat):
     """
