@@ -953,7 +953,7 @@ with tab3:
             },
             template="plotly_dark",
         )
-        fig_aandeel.update_traces(mode="lines", line_shape="spline", line=dict(width=2.5))
+        fig_aandeel.update_traces(line=dict(width=2.5))
         fig_aandeel.update_layout(
             paper_bgcolor="rgba(0,0,0,0)",
             plot_bgcolor="rgba(15,23,42,1)",
@@ -987,7 +987,7 @@ with tab3:
         },
             template="plotly_dark",
     )
-    fig_abs.update_traces(mode="lines", line_shape="spline", line=dict(width=2.5))
+    fig_abs.update_traces(line=dict(width=2.5))
     fig_abs.update_layout(
         paper_bgcolor="rgba(0,0,0,0)",
         plot_bgcolor="rgba(15,23,42,1)",
