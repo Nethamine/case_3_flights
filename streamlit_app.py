@@ -128,6 +128,31 @@ st.markdown("""
         box-shadow: 0 4px 20px rgba(34,197,94,0.4);
     }
 
+    /* Suggestion buttons — subtler style */
+    div[data-testid="stHorizontalBlock"] div[data-testid="stButton"] button {
+        background: #1e293b !important;
+        color: #94a3b8 !important;
+        font-family: 'DM Sans', sans-serif !important;
+        font-size: 12px !important;
+        font-weight: 400 !important;
+        letter-spacing: 0 !important;
+        text-transform: none !important;
+        border: 1px solid #334155 !important;
+        border-radius: 6px !important;
+        padding: 6px 10px !important;
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+    }
+
+    div[data-testid="stHorizontalBlock"] div[data-testid="stButton"] button:hover {
+        background: #22c55e !important;
+        color: #0f172a !important;
+        border-color: #22c55e !important;
+        transform: none !important;
+        box-shadow: none !important;
+    }
+
     .metric-row {
         display: flex;
         gap: 16px;
@@ -225,6 +250,27 @@ def geocode_address(address: str):
         pass
     return None, None, None
 
+@st.cache_data(ttl=300, show_spinner=False)
+def fetch_suggestions(query: str):
+    """Fetch address suggestions from Nominatim — cached 5 min per unique query."""
+    if len(query.strip()) < 3:
+        return []
+    url = "https://nominatim.openstreetmap.org/search"
+    params = {
+        "q": query + ", Netherlands",
+        "format": "json",
+        "limit": 6,
+        "addressdetails": 0,
+        "countrycodes": "nl",
+    }
+    headers = {"User-Agent": "LaadpalenNL-StreamlitApp/1.0"}
+    try:
+        r = requests.get(url, params=params, headers=headers, timeout=4)
+        results = r.json()
+        return [res["display_name"] for res in results]
+    except Exception:
+        return []
+
 def _osrm_route(origin_lon, origin_lat, dest_lon, dest_lat):
     """
     Fetch a driving route from the public OSRM demo server.
@@ -255,34 +301,25 @@ def _osrm_route(origin_lon, origin_lat, dest_lon, dest_lat):
 
 def find_nearest_charger_dijkstra(user_lat, user_lon, df, tree, n_candidates=10):
     """
-    Geo-based Dijkstra using real road distances via OSRM:
-    1. BallTree selects the N nearest charger candidates by straight-line distance.
-    2. For each candidate, fetch the actual road distance from OSRM.
-    3. Build a single-source graph: user → each candidate, weight = road distance (km).
-    4. Dijkstra selects the candidate with the minimum road distance.
-    5. Fetch the final road geometry for the winning charger to draw on the map.
-    Returns: (best_charger_idx, road_dist_km, road_duration_min, route_coords)
+    Geo-based Dijkstra using real road distances via OSRM.
     """
     R = 6371.0
 
-    # Step 1: get N nearest by straight-line as candidates
     user_rad = np.radians([[user_lat, user_lon]])
     distances_rad, indices = tree.query(user_rad, k=n_candidates)
 
-    # Step 2 & 3: query OSRM for each candidate, build Dijkstra graph
     USER_NODE = 0
     graph        = {USER_NODE: []}
-    route_cache  = {}   # node_id → (dist_km, dur_min, coords)
+    route_cache  = {}
 
     for rank, charger_idx in enumerate(indices[0]):
-        node_id     = rank + 1
+        node_id = rank + 1
         c_lat = float(df.iloc[charger_idx]['AddressInfo_Latitude'])
         c_lon = float(df.iloc[charger_idx]['AddressInfo_Longitude'])
 
         dist_km, dur_min, coords = _osrm_route(user_lon, user_lat, c_lon, c_lat)
 
         if dist_km is None:
-            # Fall back to Haversine if OSRM fails for this candidate
             dist_km  = float(distances_rad[0][rank]) * R
             dur_min  = None
             coords   = None
@@ -291,7 +328,6 @@ def find_nearest_charger_dijkstra(user_lat, user_lon, df, tree, n_candidates=10)
         graph[node_id]  = []
         route_cache[node_id] = (int(charger_idx), dist_km, dur_min, coords)
 
-    # Step 4: Dijkstra (single-source star graph → trivially picks min edge)
     dist_map = {node: float('inf') for node in graph}
     prev_map = {node: None         for node in graph}
     dist_map[USER_NODE] = 0.0
@@ -315,7 +351,6 @@ def find_nearest_charger_dijkstra(user_lat, user_lon, df, tree, n_candidates=10)
 
     best_charger_idx, road_dist_km, road_dur_min, road_coords = route_cache[best_node]
 
-    # If we only have a fallback distance but no geometry, fetch geometry now
     if road_coords is None:
         c_lat = float(df.iloc[best_charger_idx]['AddressInfo_Latitude'])
         c_lon = float(df.iloc[best_charger_idx]['AddressInfo_Longitude'])
@@ -418,22 +453,72 @@ with tab2:
     st.markdown("### Vind de dichtstbijzijnde laadpaal")
     st.markdown("Voer een adres, plaatsnaam of postcode in. Het algoritme berekent de kortste route door het laadpalennetwerk.")
 
+    # ----- Session state initialiseren -----
+    if "address_input"    not in st.session_state:
+        st.session_state["address_input"]    = ""
+    if "suggestions"      not in st.session_state:
+        st.session_state["suggestions"]      = []
+    if "selected_address" not in st.session_state:
+        st.session_state["selected_address"] = ""
+
     col_search, col_btn = st.columns([3, 1])
 
     with col_search:
-        address_input = st.text_input(
+        typed = st.text_input(
             "Startlocatie",
+            value=st.session_state["address_input"],
             placeholder="bijv. Kalverstraat 1, Amsterdam  •  3012 Rotterdam  •  Eindhoven Centrum",
-            label_visibility="collapsed"
+            label_visibility="collapsed",
+            key="raw_address_input",
         )
 
     with col_btn:
         search_clicked = st.button("⚡ Zoek Route", width="stretch")
 
+    # ----- Suggesties ophalen als invoer veranderd is -----
+    if typed != st.session_state["address_input"]:
+        st.session_state["address_input"]    = typed
+        st.session_state["selected_address"] = ""          # reset selectie bij nieuw typen
+        if len(typed.strip()) >= 3:
+            st.session_state["suggestions"] = fetch_suggestions(typed.strip())
+        else:
+            st.session_state["suggestions"] = []
+
+    # ----- Suggesties tonen als klikbare knoppen -----
+    suggestions = st.session_state["suggestions"]
+    if suggestions and not st.session_state["selected_address"]:
+        st.markdown(
+            "<div style='margin: 6px 0 4px 0; font-size:11px; color:#64748b; "
+            "font-family:Space Mono,monospace; letter-spacing:1px;'>SUGGESTIES</div>",
+            unsafe_allow_html=True,
+        )
+        sug_cols = st.columns(len(suggestions))
+        for i, suggestion in enumerate(suggestions):
+            short_label = ", ".join(suggestion.split(", ")[:2])
+            with sug_cols[i]:
+                if st.button(short_label, key=f"sug_{i}"):
+                    st.session_state["selected_address"] = suggestion
+                    st.session_state["address_input"]    = suggestion
+                    st.session_state["suggestions"]      = []
+                    st.rerun()
+
+    # ----- Bevestiging van geselecteerd adres -----
+    if st.session_state["selected_address"]:
+        st.markdown(
+            f"<div style='margin: 6px 0 10px 0; padding: 8px 14px; "
+            f"background: rgba(34,197,94,0.1); border: 1px solid #22c55e; "
+            f"border-radius: 8px; font-size: 13px; color: #22c55e;'>"
+            f"✅ {st.session_state['selected_address']}</div>",
+            unsafe_allow_html=True,
+        )
+
+    # ----- Bepaal het uiteindelijke adres voor de zoekopdracht -----
+    final_address = st.session_state["selected_address"] or st.session_state["address_input"]
+
     # ---- Results ----
-    if search_clicked and address_input.strip():
+    if search_clicked and final_address.strip():
         with st.spinner("Locatie zoeken en route berekenen..."):
-            user_lat, user_lon, display_name = geocode_address(address_input.strip())
+            user_lat, user_lon, display_name = geocode_address(final_address.strip())
 
         if user_lat is None:
             st.error("❌ Adres niet gevonden. Probeer een andere zoekopdracht.")
@@ -487,8 +572,6 @@ with tab2:
             """, unsafe_allow_html=True)
 
             # --- Build map layers ---
-
-            # Background: all chargers (dimmed)
             all_chargers_map = df[['AddressInfo_Latitude', 'AddressInfo_Longitude',
                                    'AddressInfo_Title']].copy()
             all_chargers_map.columns = ['lat', 'lon', 'title']
@@ -504,7 +587,6 @@ with tab2:
                 pickable=False,
             )
 
-            # Road route line — real OSRM geometry if available, else straight fallback
             if road_coords and len(road_coords) >= 2:
                 route_segments = [
                     {"start": [road_coords[i]["lon"], road_coords[i]["lat"]],
@@ -527,7 +609,6 @@ with tab2:
                 width_min_pixels=3,
             )
 
-            # User location (blue)
             start_layer = pdk.Layer(
                 "ScatterplotLayer",
                 data=[{"lat": user_lat, "lon": user_lon, "label": "📍 Startpunt"}],
@@ -539,7 +620,6 @@ with tab2:
                 pickable=True,
             )
 
-            # Destination charger (bright green)
             end_layer = pdk.Layer(
                 "ScatterplotLayer",
                 data=[{"lat": charger_lat, "lon": charger_lon,
@@ -552,7 +632,6 @@ with tab2:
                 pickable=True,
             )
 
-            # View: fit around the route
             mid_lat = (user_lat + charger_lat) / 2
             mid_lon = (user_lon + charger_lon) / 2
 
@@ -593,11 +672,11 @@ with tab2:
                 <span style="color:#fbbf24; font-family:'Space Mono',monospace; font-weight:700;">
                     HOE WERKT HET
                 </span><br><br>
-                De BallTree selecteert de <strong style="color:white;">10 geografisch dichtstbijzijnde 
-                laadpalen</strong> als kandidaten. Voor elke kandidaat wordt de echte 
-                <strong style="color:white;">rijafstand via OSRM</strong> (OpenStreetMap routing) 
-                opgehaald. Dijkstra's algoritme kiest de kandidaat met de 
-                <strong style="color:white;">kortste rijafstand over de weg</strong> — niet de 
+                De BallTree selecteert de <strong style="color:white;">10 geografisch dichtstbijzijnde
+                laadpalen</strong> als kandidaten. Voor elke kandidaat wordt de echte
+                <strong style="color:white;">rijafstand via OSRM</strong> (OpenStreetMap routing)
+                opgehaald. Dijkstra's algoritme kiest de kandidaat met de
+                <strong style="color:white;">kortste rijafstand over de weg</strong> — niet de
                 hemelsbreed dichtstbijzijnde. De gele lijn volgt de exacte rijroute.
             </div>
             """, unsafe_allow_html=True)
@@ -605,7 +684,6 @@ with tab2:
     elif search_clicked:
         st.warning("Voer een adres in om te zoeken.")
     else:
-        # Placeholder state
         st.markdown("""
         <div style="margin-top:40px; text-align:center; color:#334155;">
             <div style="font-size:48px; margin-bottom:16px;">🔍</div>
@@ -622,7 +700,6 @@ with tab3:
     st.markdown("### Aandeel voertuigen per aandrijflijn")
     st.markdown("Cumulatief aandeel van het Nederlandse wagenpark per brandstofcategorie over de tijd.")
 
-    # --- Categorisering ---
     def categoriseer_brandstof(brandstof):
         if pd.isna(brandstof):
             return None
@@ -640,7 +717,6 @@ with tab3:
     df_cat["categorie"] = df_cat["brandstof_omschrijving"].apply(categoriseer_brandstof)
     df_cat = df_cat[df_cat["categorie"].notna()].copy()
 
-    # --- Groeperen en cumuleren ---
     df_groep = (
         df_cat
         .groupby(["jaar_maand", "categorie"])
@@ -650,18 +726,15 @@ with tab3:
     )
     df_groep["cumulatief"] = df_groep.groupby("categorie")["aantal"].cumsum()
 
-    # --- Percentage t.o.v. totaal lopend bestand per maand ---
     totaal_per_maand = df_groep.groupby("jaar_maand")["cumulatief"].transform("sum")
     df_groep["percentage"] = (df_groep["cumulatief"] / totaal_per_maand * 100).round(2)
 
-    # --- Kleurmap ---
     kleur_map = {
         "🔋 Volledig elektrisch": "#22c55e",
         "⚡ Plug-in hybride":     "#f59e0b",
         "⛽ Fossiel":              "#64748b",
     }
 
-    # --- Snelle statistieken bovenaan ---
     laatste_maand = df_groep["jaar_maand"].max()
     laatste = df_groep[df_groep["jaar_maand"] == laatste_maand].set_index("categorie")
 
@@ -699,7 +772,6 @@ with tab3:
 
     st.markdown("<div style='margin-top:24px'></div>", unsafe_allow_html=True)
 
-    # --- Lijndiagram aandeel ---
     if df_groep.empty:
         st.warning("Geen data beschikbaar.")
     else:
@@ -734,7 +806,6 @@ with tab3:
 
     st.divider()
 
-    # --- Absolute aantallen per categorie ---
     st.markdown("### Absolute registraties per aandrijflijn")
 
     fig_abs = px.line(
@@ -766,7 +837,6 @@ with tab3:
     )
     st.plotly_chart(fig_abs, width="stretch")
 
-    # --- Voertuigsoort filter ---
     st.divider()
     st.markdown("### Uitsplitsing per voertuigsoort")
 
