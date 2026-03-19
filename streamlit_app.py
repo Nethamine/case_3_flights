@@ -286,7 +286,8 @@ st.markdown("""
     display: flex;
     gap: 0;
     margin-bottom: 44px;
-    border: 1px solid #1e293b;
+    background: transparent !important;
+    border: 1px solid #1e293b !important;
     border-radius: 12px;
     overflow: hidden;
     animation: fadeUp 0.6s 0.3s ease both;
@@ -294,7 +295,7 @@ st.markdown("""
 .stat-item {
     flex: 1;
     padding: 22px 24px;
-    background: rgba(15,23,42,0.8);
+    background: #0f172a !important;
     border-right: 1px solid #1e293b;
     transition: background 0.2s;
 }
@@ -321,8 +322,8 @@ st.markdown("""
     animation: fadeUp 0.6s 0.4s ease both;
 }
 .feature-card {
-    background: rgba(15,23,42,0.6);
-    border: 1px solid #1e293b;
+    background: #0f172a !important;
+    border: 1px solid #1e293b !important;
     border-radius: 10px;
     padding: 20px;
     transition: all 0.25s;
