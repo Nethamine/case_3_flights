@@ -1372,6 +1372,40 @@ with tab3:
                 template="plotly_dark",
             )
             fig_ratio.update_traces(line=dict(width=2.5))
+            # ── kruispunt elektrisch > fossiel ───────────────────────────────
+            elek_ratio = df_ratio[df_ratio["categorie"] == "🔋 Volledig elektrisch"].copy()
+            foss_ratio = df_ratio[df_ratio["categorie"] == "⛽ Fossiel"].copy()
+
+            kruispunt = elek_ratio.merge(foss_ratio, on="jaar_maand", suffixes=("_elek", "_foss"))
+            kruispunt = kruispunt[
+                (kruispunt["type_elek"] == "Voorspelling") &
+                (kruispunt["percentage_elek"] >= kruispunt["percentage_foss"])
+            ]
+
+            if not kruispunt.empty:
+                kruis_datum  = kruispunt["jaar_maand"].iloc[0]
+                kruis_pct    = kruispunt["percentage_elek"].iloc[0]
+
+                fig_ratio.add_annotation(
+                    x=kruis_datum,
+                    y=kruis_pct,
+                    text=f"⚡ {datum_nl(kruis_datum)}",
+                    showarrow=True,
+                    arrowhead=2,
+                    arrowcolor="#22c55e",
+                    arrowwidth=1.5,
+                    ax=40,
+                    ay=-40,
+                    font=dict(
+                        family="Space Mono, monospace",
+                        size=11,
+                        color="#22c55e",
+                    ),
+                    bgcolor="#0f172a",
+                    bordercolor="#22c55e",
+                    borderwidth=1,
+                    borderpad=6,
+                )
             fig_ratio.update_layout(
                 paper_bgcolor="rgba(0,0,0,0)",
                 plot_bgcolor="rgba(15,23,42,1)",
