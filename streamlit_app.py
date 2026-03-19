@@ -817,19 +817,19 @@ with tab1:
             <span style="font-size:12px; color:#94a3b8; font-family:'Space Mono',monospace;">Onbekend</span>
         </div>
         <div style="display:flex; align-items:center; gap:8px;">
-            <div style="width:14px; height:14px; border-radius:50%; background:#60a5fa;"></div>
+            <div style="width:14px; height:14px; border-radius:50%; background:#ef4444;"></div>
             <span style="font-size:12px; color:#94a3b8; font-family:'Space Mono',monospace;">Langzaam &lt; 22 kW</span>
         </div>
         <div style="display:flex; align-items:center; gap:8px;">
-            <div style="width:14px; height:14px; border-radius:50%; background:#facc15;"></div>
+            <div style="width:14px; height:14px; border-radius:50%; background:#f97316;"></div>
             <span style="font-size:12px; color:#94a3b8; font-family:'Space Mono',monospace;">Snel 22–100 kW</span>
         </div>
         <div style="display:flex; align-items:center; gap:8px;">
-            <div style="width:14px; height:14px; border-radius:50%; background:#f97316;"></div>
+            <div style="width:14px; height:14px; border-radius:50%; background:#eab308;"></div>
             <span style="font-size:12px; color:#94a3b8; font-family:'Space Mono',monospace;">Supersnel 100–150 kW</span>
         </div>
         <div style="display:flex; align-items:center; gap:8px;">
-            <div style="width:14px; height:14px; border-radius:50%; background:#ef4444;"></div>
+            <div style="width:14px; height:14px; border-radius:50%; background:#22c55e;"></div>
             <span style="font-size:12px; color:#94a3b8; font-family:'Space Mono',monospace;">Ultrasnel &gt; 150 kW</span>
         </div>
     </div>
