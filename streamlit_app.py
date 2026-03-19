@@ -1214,33 +1214,7 @@ with tab3:
 
             st.markdown("<div style='margin-top:24px'></div>", unsafe_allow_html=True)
 
-            fig_aandeel = px.line(
-                df_groep_gefilterd,
-                x="jaar_maand",
-                y="percentage",
-                color="categorie",
-                color_discrete_map=kleur_map,
-                labels={"jaar_maand": "Datum", "percentage": "Aandeel (%)", "categorie": "Aandrijflijn"},
-                template="plotly_dark",
-            )
-            fig_aandeel.update_traces(line=dict(width=2.5))
-            fig_aandeel.update_layout(
-                paper_bgcolor="rgba(0,0,0,0)",
-                plot_bgcolor="rgba(15,23,42,1)",
-                font=dict(family="DM Sans", color="#94a3b8"),
-                legend_title="Aandrijflijn",
-                xaxis_title="Datum",
-                yaxis_title="Aandeel van lopend bestand (%)",
-                hovermode="x unified",
-                yaxis=dict(ticksuffix="%", gridcolor="#1e293b"),
-                xaxis=dict(gridcolor="#1e293b"),
-                height=460,
-                margin=dict(t=20, b=20),
-            )
-            st.plotly_chart(fig_aandeel, use_container_width=True)
-
-            st.divider()
-
+            # ── 1. CUMULATIEF ────────────────────────────────────────────────
             st.markdown("### Registraties per aandrijflijn")
 
             fig_abs = px.line(
@@ -1270,15 +1244,45 @@ with tab3:
 
             st.divider()
 
-            # ── Rollend R²-venster: bepaal beste startpunt ──────────────────
+            # ── 2. VERHOUDING ────────────────────────────────────────────────
+            st.markdown("### Aandeel per aandrijflijn")
+
+            fig_aandeel = px.line(
+                df_groep_gefilterd,
+                x="jaar_maand",
+                y="percentage",
+                color="categorie",
+                color_discrete_map=kleur_map,
+                labels={"jaar_maand": "Datum", "percentage": "Aandeel (%)", "categorie": "Aandrijflijn"},
+                template="plotly_dark",
+            )
+            fig_aandeel.update_traces(line=dict(width=2.5))
+            fig_aandeel.update_layout(
+                paper_bgcolor="rgba(0,0,0,0)",
+                plot_bgcolor="rgba(15,23,42,1)",
+                font=dict(family="DM Sans", color="#94a3b8"),
+                legend_title="Aandrijflijn",
+                xaxis_title="Datum",
+                yaxis_title="Aandeel van lopend bestand (%)",
+                hovermode="x unified",
+                yaxis=dict(ticksuffix="%", gridcolor="#1e293b"),
+                xaxis=dict(gridcolor="#1e293b"),
+                height=460,
+                margin=dict(t=20, b=20),
+            )
+            st.plotly_chart(fig_aandeel, use_container_width=True)
+
+            st.divider()
+
+            # ── 3. VOORSPELLING ──────────────────────────────────────────────
             st.markdown("### 🔮 Voorspelling verhouding tot 2050")
 
             elek = df_groep[df_groep["categorie"] == "🔋 Volledig elektrisch"].copy()
             elek = elek[elek["jaar_maand"] >= pd.Timestamp("2018-01-01")]
 
-            MIN_PUNTEN = 12  # minimaal 12 maanden voor een betrouwbare fit
+            MIN_PUNTEN = 12
 
-            beste_r2        = -np.inf
+            beste_r2         = -np.inf
             beste_startdatum = None
             beste_model      = None
             beste_sub        = None
@@ -1312,7 +1316,6 @@ with tab3:
                 unsafe_allow_html=True,
             )
 
-            # ── voorspelling op basis van beste startpunt ───────────────────
             def voorspel(categorie: str, startdatum: pd.Timestamp) -> pd.DataFrame:
                 sub = df_groep[
                     (df_groep["categorie"] == categorie) &
@@ -1341,7 +1344,6 @@ with tab3:
                     "type":       "Voorspelling",
                 })
 
-            # ── combineer historisch + voorspelling ─────────────────────────
             df_hist = df_groep[["jaar_maand", "percentage", "categorie"]].copy()
             df_hist["type"] = "Historisch"
 
@@ -1423,7 +1425,9 @@ with tab3:
                 elk mogelijk startpunt vanaf januari 2018 wordt geëvalueerd (minimaal 12 maanden data),
                 en het punt met de hoogste R² wordt gekozen —
                 <strong style="color:#22c55e;">{beste_startdatum.strftime('%B %Y')} (R² = {beste_r2:.4f})</strong>.
-                Dit is het moment waarop de lineaire trend in het elektrisch aandeel het sterkst is.
-                Lineaire regressie houdt geen rekening met beleidsveranderingen of verzadigingseffecten.
+                Omdat elektrisch en fossiel optellen tot 100% is dit startpunt optimaal voor
+                <em>beide</em> categorieën tegelijk — de regressie beschrijft de volledige
+                transitie in het wagenpark. Lineaire regressie houdt geen rekening met
+                beleidsveranderingen of verzadigingseffecten.
             </div>
             """, unsafe_allow_html=True)
