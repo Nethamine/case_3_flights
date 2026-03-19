@@ -477,8 +477,6 @@ intro_html = """
 
 st.markdown(intro_html, unsafe_allow_html=True)
 
-st.markdown("# 🌱 Groene Mobiliteit Nederland")
-
 # ==================== DATA LADEN ============================================
 @st.cache_data
 def load_data():
