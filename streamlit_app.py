@@ -1260,7 +1260,7 @@ with tab3:
                 font=dict(family="DM Sans", color="#94a3b8"),
                 legend_title="Brandstoftype",
                 xaxis_title="Datum",
-                yaxis_title="Aandeel van lopend bestand (%)",
+                yaxis_title="Aandeel van brandstoftype (%)",
                 hovermode="x unified",
                 yaxis=dict(ticksuffix="%", gridcolor="#1e293b"),
                 xaxis=dict(gridcolor="#1e293b"),
