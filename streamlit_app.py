@@ -817,19 +817,19 @@ with tab1:
             <span style="font-size:12px; color:#94a3b8; font-family:'Space Mono',monospace;">Onbekend</span>
         </div>
         <div style="display:flex; align-items:center; gap:8px;">
-            <div style="width:14px; height:14px; border-radius:50%; background:#ef4444;"></div>
+            <div style="width:14px; height:14px; border-radius:50%; background:#60a5fa;"></div>
             <span style="font-size:12px; color:#94a3b8; font-family:'Space Mono',monospace;">Langzaam &lt; 22 kW</span>
         </div>
         <div style="display:flex; align-items:center; gap:8px;">
-            <div style="width:14px; height:14px; border-radius:50%; background:#f97316;"></div>
+            <div style="width:14px; height:14px; border-radius:50%; background:#facc15;"></div>
             <span style="font-size:12px; color:#94a3b8; font-family:'Space Mono',monospace;">Snel 22–100 kW</span>
         </div>
         <div style="display:flex; align-items:center; gap:8px;">
-            <div style="width:14px; height:14px; border-radius:50%; background:#eab308;"></div>
+            <div style="width:14px; height:14px; border-radius:50%; background:#f97316;"></div>
             <span style="font-size:12px; color:#94a3b8; font-family:'Space Mono',monospace;">Supersnel 100–150 kW</span>
         </div>
         <div style="display:flex; align-items:center; gap:8px;">
-            <div style="width:14px; height:14px; border-radius:50%; background:#22c55e;"></div>
+            <div style="width:14px; height:14px; border-radius:50%; background:#ef4444;"></div>
             <span style="font-size:12px; color:#94a3b8; font-family:'Space Mono',monospace;">Ultrasnel &gt; 150 kW</span>
         </div>
     </div>
@@ -853,13 +853,13 @@ with tab1:
             if pd.isna(kw):
                 return [148, 163, 184, 200]   # grijs — onbekend
             elif kw < 22:
-                return [239, 68, 68, 220]    # rood — langzaam
+                return [96, 165, 250, 220]    # blauw — langzaam
             elif kw < 100:
-                return [249, 115, 22, 220]    # oranje — snel
+                return [250, 204, 21, 220]    # geel — snel
             elif kw < 150:
-                return [234, 179, 8, 220]    # geel — supersnel
+                return [249, 115, 22, 220]    # oranje — supersnel
             else:
-                return [34, 197, 94, 220]     # groen — ultrasnel
+                return [239, 68, 68, 220]     # rood — ultrasnel
 
         map_df['color'] = map_df['power_num'].apply(power_color)
         map_df['power'] = map_df['power'].fillna('N/A')
