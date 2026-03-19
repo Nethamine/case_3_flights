@@ -12,15 +12,7 @@ import plotly.express as px
 from shapely.geometry import Point
 from sklearn.neighbors import BallTree
 from thefuzz import process as fuzz_process
-# ==================== HULPFUNCTIES DATUM ==================================
-MAANDEN_NL = {
-    1: "januari", 2: "februari", 3: "maart", 4: "april",
-    5: "mei", 6: "juni", 7: "juli", 8: "augustus",
-    9: "september", 10: "oktober", 11: "november", 12: "december"
-}
 
-def datum_nl(ts):
-    return f"{MAANDEN_NL[ts.month]} {ts.year}"
 # ==================== PAGINA INSTELLINGEN ==================================
 st.set_page_config(page_title="Groene Mobiliteit Nederland", page_icon="🌱", layout="wide")
 
@@ -1319,7 +1311,7 @@ with tab3:
                 f"<span style='font-family:Space Mono,monospace; font-size:12px; color:#64748b;'>"
                 f"BESTE STARTPUNT: </span>"
                 f"<span style='font-family:Space Mono,monospace; font-size:12px; color:#22c55e;'>"
-                f"{datum_nl(beste_startdatum)} &nbsp;|&nbsp; R² = {beste_r2:.4f}"
+                f"{beste_startdatum.strftime('%B %Y')} &nbsp;|&nbsp; R² = {beste_r2:.4f}"
                 f"</span></div>",
                 unsafe_allow_html=True,
             )
@@ -1409,7 +1401,7 @@ with tab3:
                     datum = bereikt["jaar_maand"].min()
                     mijlpalen.append({
                         "Mijlpaal":         f"{drempel}% elektrisch",
-                        "Voorspelde maand": datum_nl(beste_startdatum),
+                        "Voorspelde maand": datum.strftime("%B %Y"),
                     })
                 else:
                     mijlpalen.append({
@@ -1432,7 +1424,7 @@ with tab3:
                 Het startpunt van de regressie wordt automatisch bepaald via een rollend R²-venster:
                 elk mogelijk startpunt vanaf januari 2018 wordt geëvalueerd (minimaal 12 maanden data),
                 en het punt met de hoogste R² wordt gekozen —
-                <strong style="color:#22c55e;">{datum_nl(beste_startdatum)} (R² = {beste_r2:.4f})</strong>.
+                <strong style="color:#22c55e;">{beste_startdatum.strftime('%B %Y')} (R² = {beste_r2:.4f})</strong>.
                 Omdat elektrisch en fossiel optellen tot 100% is dit startpunt optimaal voor
                 <em>beide</em> categorieën tegelijk — de regressie beschrijft de volledige
                 transitie in het wagenpark. Lineaire regressie houdt geen rekening met
