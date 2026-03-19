@@ -1446,18 +1446,3 @@ with tab3:
                 use_container_width=True,
             )
 
-            st.markdown(f"""
-            <div style="margin-top:12px; padding:12px 16px; background:#0f172a; border-radius:8px;
-                        border-left:3px solid #fbbf24; font-size:12px; color:#94a3b8;">
-                <span style="color:#fbbf24; font-family:'Space Mono',monospace; font-weight:700;">
-                    METHODOLOGIE
-                </span><br><br>
-                Het startpunt van de regressie wordt automatisch bepaald via een rollend R²-venster:
-                elk mogelijk startpunt vanaf januari 2018 wordt geëvalueerd (minimaal 12 maanden data),
-                en het punt met de hoogste R² wordt gekozen —
-                <strong style="color:#22c55e;">{beste_startdatum.strftime('%B %Y')} (R² = {beste_r2:.4f})</strong>.
-                Omdat elektrisch en fossiel optellen tot 100% is dit startpunt optimaal voor
-                <em>beide</em> categorieën tegelijk — de regressie beschrijft de volledige
-                transitie in de automarkt.
-            </div>
-            """, unsafe_allow_html=True)
