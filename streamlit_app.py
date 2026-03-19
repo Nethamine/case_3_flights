@@ -1028,15 +1028,25 @@ with tab3:
 
             # ── Voorspelling verhouding tot 2050 ────────────────────────────
             st.markdown("### 🔮 Voorspelling verhouding tot 2050")
-            st.markdown("Lineaire regressie op de verhouding elektrisch/fossiel, gefit op data vanaf 2024.")
+            st.markdown("Drie scenario's op basis van lineaire regressie gefit op data vanaf 2024.")
 
             from sklearn.linear_model import LinearRegression
             import numpy as np
 
-            vandaag = pd.Timestamp("today")
-            lijn_stijl = {"Historisch": "solid", "Voorspelling": "dot"}
+            lijn_stijl = {"Historisch": "solid", "Gunstig": "dot", "Gemiddeld": "dash", "Ongunstig": "dashdot"}
 
-            def voorspel_ratio(categorie: str) -> pd.DataFrame:
+            kleur_map_scenario = {
+                "🔋 Historisch": "#22c55e",
+                "⛽ Historisch": "#64748b",
+                "🔋 Gunstig":    "#86efac",
+                "🔋 Gemiddeld":  "#22c55e",
+                "🔋 Ongunstig":  "#166534",
+                "⛽ Gunstig":    "#94a3b8",
+                "⛽ Gemiddeld":  "#64748b",
+                "⛽ Ongunstig":  "#334155",
+            }
+
+            def voorspel_scenario(categorie: str, scenario: str) -> pd.DataFrame:
                 sub = df_groep[
                     (df_groep["categorie"] == categorie) &
                     (df_groep["jaar_maand"] >= pd.Timestamp("2024-01-01"))
@@ -1053,24 +1063,45 @@ with tab3:
                 model = LinearRegression()
                 model.fit(sub[["t"]], sub["percentage"])
 
-                t_max = (2050 - t0.year) * 12 + (12 - t0.month)
+                residu_std = np.std(
+                    sub["percentage"].values - model.predict(sub[["t"]])
+                )
+
+                helling    = model.coef_[0]
+                intercept  = model.intercept_
+
+                if categorie == "🔋 Volledig elektrisch":
+                    aanpassing = {"Gunstig": residu_std, "Gemiddeld": 0, "Ongunstig": -residu_std}
+                else:
+                    aanpassing = {"Gunstig": -residu_std, "Gemiddeld": 0, "Ongunstig": residu_std}
+
+                t_max      = (2050 - t0.year) * 12 + (12 - t0.month)
                 t_toekomst = np.arange(sub["t"].max() + 1, t_max + 1)
-                datums = [t0 + pd.DateOffset(months=int(t)) for t in t_toekomst]
-                voorspeld = np.clip(model.predict(t_toekomst.reshape(-1, 1)), 0, 100)
+                datums     = [t0 + pd.DateOffset(months=int(t)) for t in t_toekomst]
+
+                voorspeld = np.clip(
+                    intercept + (helling + aanpassing[scenario] / (t_max / 12)) * t_toekomst,
+                    0, 100
+                )
 
                 return pd.DataFrame({
                     "jaar_maand": datums,
                     "percentage": voorspeld,
+                    "lijn":       f"{categorie.split()[0]} {scenario}",
+                    "scenario":   scenario,
                     "categorie":  categorie,
-                    "type":       "Voorspelling",
                 })
 
-            df_groep["type"] = "Historisch"
-            frames = [df_groep[["jaar_maand", "percentage", "categorie", "type"]]]
+            df_hist = df_groep[["jaar_maand", "percentage", "categorie"]].copy()
+            df_hist["lijn"]     = df_hist["categorie"].apply(lambda c: f"{c.split()[0]} Historisch")
+            df_hist["scenario"] = "Historisch"
+
+            frames = [df_hist]
             for cat in ["🔋 Volledig elektrisch", "⛽ Fossiel"]:
-                pred = voorspel_ratio(cat)
-                if not pred.empty:
-                    frames.append(pred)
+                for scenario in ["Gunstig", "Gemiddeld", "Ongunstig"]:
+                    pred = voorspel_scenario(cat, scenario)
+                    if not pred.empty:
+                        frames.append(pred)
 
             df_ratio = pd.concat(frames, ignore_index=True)
 
@@ -1078,67 +1109,63 @@ with tab3:
                 df_ratio,
                 x="jaar_maand",
                 y="percentage",
-                color="categorie",
-                line_dash="type",
+                color="lijn",
+                line_dash="scenario",
                 line_dash_map=lijn_stijl,
-                color_discrete_map=kleur_map,
+                color_discrete_map=kleur_map_scenario,
                 labels={
                     "jaar_maand": "Datum",
                     "percentage": "Aandeel (%)",
-                    "categorie":  "Aandrijflijn",
-                    "type":       "Type",
+                    "lijn":       "Lijn",
                 },
                 template="plotly_dark",
             )
-            fig_ratio.update_traces(line=dict(width=2.5))
-            fig_ratio.add_vline(
-                x=vandaag.timestamp() * 1000,
-                line_dash="dash",
-                line_color="#fbbf24",
-                annotation_text="Vandaag",
-                annotation_font_color="#fbbf24",
-                annotation_position="top right",
-            )
+            fig_ratio.update_traces(line=dict(width=2))
             fig_ratio.update_layout(
                 paper_bgcolor="rgba(0,0,0,0)",
                 plot_bgcolor="rgba(15,23,42,1)",
                 font=dict(family="DM Sans", color="#94a3b8"),
-                legend_title="Aandrijflijn",
+                legend_title="Scenario",
                 xaxis_title="Datum",
                 yaxis_title="Aandeel van wagenpark (%)",
                 hovermode="x unified",
                 yaxis=dict(ticksuffix="%", gridcolor="#1e293b", range=[0, 100]),
                 xaxis=dict(gridcolor="#1e293b"),
-                height=460,
+                height=500,
                 margin=dict(t=20, b=20),
             )
             st.plotly_chart(fig_ratio, use_container_width=True)
 
             # ── mijlpalen tabel ──────────────────────────────────────────────
-            st.markdown("### 📅 Voorspelde mijlpalen")
+            st.markdown("### 📅 Voorspelde mijlpalen elektrisch")
 
             mijlpalen = []
-            elek_pred = df_ratio[
-                (df_ratio["categorie"] == "🔋 Volledig elektrisch") &
-                (df_ratio["type"] == "Voorspelling")
-            ]
-            for drempel in [10, 25, 50, 75]:
-                bereikt = elek_pred[elek_pred["percentage"] >= drempel]
-                if not bereikt.empty:
-                    datum = bereikt["jaar_maand"].min()
-                    mijlpalen.append({
-                        "Mijlpaal": f"{drempel}% elektrisch",
-                        "Voorspelde maand": datum.strftime("%B %Y"),
-                    })
+            for scenario in ["Gunstig", "Gemiddeld", "Ongunstig"]:
+                elek_pred = df_ratio[
+                    (df_ratio["categorie"] == "🔋 Volledig elektrisch") &
+                    (df_ratio["scenario"] == scenario)
+                ]
+                for drempel in [10, 25, 50, 75]:
+                    bereikt = elek_pred[elek_pred["percentage"] >= drempel]
+                    if not bereikt.empty:
+                        datum = bereikt["jaar_maand"].min()
+                        mijlpalen.append({
+                            "Scenario":         scenario,
+                            "Mijlpaal":         f"{drempel}% elektrisch",
+                            "Voorspelde maand": datum.strftime("%B %Y"),
+                        })
+                    else:
+                        mijlpalen.append({
+                            "Scenario":         scenario,
+                            "Mijlpaal":         f"{drempel}% elektrisch",
+                            "Voorspelde maand": "Na 2050",
+                        })
 
-            if mijlpalen:
-                st.dataframe(
-                    pd.DataFrame(mijlpalen),
-                    hide_index=True,
-                    use_container_width=True,
-                )
-            else:
-                st.info("50%+ elektrisch wordt niet bereikt vóór 2050 op basis van deze regressie.")
+            st.dataframe(
+                pd.DataFrame(mijlpalen),
+                hide_index=True,
+                use_container_width=True,
+            )
 
             st.markdown("""
             <div style="margin-top:12px; padding:12px 16px; background:#0f172a; border-radius:8px;
@@ -1146,10 +1173,11 @@ with tab3:
                 <span style="color:#fbbf24; font-family:'Space Mono',monospace; font-weight:700;">
                     METHODOLOGIE
                 </span><br><br>
-                Lineaire regressie (OLS) op het maandelijkse aandeel per brandstofcategorie,
-                gefit op data vanaf januari 2024. De stippellijn toont de voorspelling —
-                de doorgaande lijn de historische data. Lineaire regressie houdt geen rekening
-                met beleidsveranderingen, economische schokken of verzadigingseffecten.
-                Gebruik als indicatie, niet als prognose.
+                Lineaire regressie (OLS) gefit op het maandelijkse aandeel per brandstofcategorie
+                vanaf januari 2024. De drie scenario's variëren de helling op basis van de
+                residustandaarddeviatie van het model: <strong style="color:white;">Gunstig</strong>
+                versnelt de elektrische groei, <strong style="color:white;">Gemiddeld</strong>
+                volgt de regressielijn, <strong style="color:white;">Ongunstig</strong> vertraagt deze.
+                Geen rekening gehouden met beleidsveranderingen of verzadigingseffecten.
             </div>
             """, unsafe_allow_html=True)
