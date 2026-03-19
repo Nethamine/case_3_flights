@@ -897,7 +897,7 @@ with tab3:
     def pct(cat):
         return f"{laatste.loc[cat, 'percentage']:.1f}%" if cat in laatste.index else "N/A"
 
-    col_a, col_b, col_c = st.columns(3)
+    col_a, col_c = st.columns(2)
     with col_a:
         st.markdown(f"""
         <div class="metric-box" style="background:#0f172a; border:1px solid #22c55e; border-radius:10px;
@@ -906,15 +906,6 @@ with tab3:
                  letter-spacing:1px; font-family:'Space Mono',monospace;">Volledig elektrisch</div>
             <div class="value" style="font-size:28px; font-weight:700; color:#22c55e;
                  font-family:'Space Mono',monospace;">{pct("🔋 Volledig elektrisch")}</div>
-        </div>""", unsafe_allow_html=True)
-    with col_b:
-        st.markdown(f"""
-        <div class="metric-box" style="background:#0f172a; border:1px solid #f59e0b; border-radius:10px;
-             padding:16px; text-align:center;">
-            <div class="label" style="font-size:11px; color:#64748b; text-transform:uppercase;
-                 letter-spacing:1px; font-family:'Space Mono',monospace;">Plug-in hybride</div>
-            <div class="value" style="font-size:28px; font-weight:700; color:#f59e0b;
-                 font-family:'Space Mono',monospace;">{pct("⚡ Plug-in hybride")}</div>
         </div>""", unsafe_allow_html=True)
     with col_c:
         st.markdown(f"""
