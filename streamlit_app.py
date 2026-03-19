@@ -506,8 +506,8 @@ with tab1:
         if filter_type == "Provincie":
             gekozen = st.selectbox("Kies een provincie:", sorted(df['Provincie'].unique()))
             filtered_df = df[df['Provincie'] == gekozen]
-        elif filter_type == "Gemeente":
-            gekozen = st.selectbox("Kies een gemeente:", sorted(df['AddressInfo_Town'].dropna().unique()))
+        elif filter_type == "Plaats":
+            gekozen = st.selectbox("Kies een plaats:", sorted(df['AddressInfo_Town'].dropna().unique()))
             filtered_df = df[df['AddressInfo_Town'] == gekozen]
         else:
             st.write("")
