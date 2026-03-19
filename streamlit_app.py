@@ -224,22 +224,33 @@ def load_data():
         df['Provincie'] = 'Onbekend'
         return df, None
 
+# FIX 1 & 2: Robust date parsing that handles datetime64, integer (20210315),
+# and ISO string (2021-03-15) formats without slicing blindly.
 @st.cache_data
 def load_voertuigen():
     df = pd.read_parquet('rdw_voertuigen.parquet')
-    
-    # Converteer integer of string naar datetime
-    df["datum_eerste_toelating"] = pd.to_datetime(
-        df["datum_eerste_toelating"].astype(str).str[:8],  # eerste 8 tekens voor de zekerheid
-        format="%Y%m%d",
-        errors="coerce"
-    )
-    
-    df["jaar_maand"] = df["datum_eerste_toelating"].dt.to_period("M").dt.to_timestamp()
-    
 
+    raw = df["datum_eerste_toelating"]
+
+    # If the column is already a proper datetime dtype, use it as-is.
+    if pd.api.types.is_datetime64_any_dtype(raw):
+        df["datum_eerste_toelating"] = raw
+    else:
+        raw_str = raw.astype(str).str.strip()
+        # Detect format: pure 8-digit integers (20210315) vs ISO strings (2021-03-15)
+        sample = raw_str.dropna().iloc[0] if not raw_str.dropna().empty else ""
+        if len(sample) >= 8 and sample[:8].isdigit() and "-" not in sample[:8]:
+            # Integer-encoded date: take first 8 chars and parse as YYYYMMDD
+            df["datum_eerste_toelating"] = pd.to_datetime(
+                raw_str.str[:8], format="%Y%m%d", errors="coerce"
+            )
+        else:
+            # ISO or other string format — let pandas infer
+            df["datum_eerste_toelating"] = pd.to_datetime(raw_str, errors="coerce")
+
+    df["jaar_maand"] = df["datum_eerste_toelating"].dt.to_period("M").dt.to_timestamp()
     return df
-  
+
 @st.cache_resource
 def build_balltree(_df):
     """Build a BallTree spatial index over all charging station coordinates."""
@@ -276,20 +287,10 @@ _NL_PLAATSNAMEN_FALLBACK = [
 
 @st.cache_data(ttl=86400, show_spinner=False)
 def load_nl_plaatsnamen() -> list[str]:
-    """
-    Laadt alle Nederlandse woonplaatsnamen via de CBS OData API (dataset 86097NED).
-    Bevat ~2500 officiële BAG-woonplaatsen. Gecached voor 24 uur.
-    Valt terug op de statische fallback-lijst als de API onbereikbaar is.
-
-    Endpoint: https://opendata.cbs.nl/ODataApi/OData/86097NED/WoonplaatsenPerGemeente
-    Veld:     WoonplaatsNaam
-    """
     url = "https://opendata.cbs.nl/ODataApi/OData/86097NED/WoonplaatsenPerGemeente"
     headers = {"User-Agent": "LaadpalenNL-StreamlitApp/1.0", "Accept": "application/json"}
     plaatsnamen = []
     try:
-        # CBS OData geeft maximaal 10 000 records per request terug —
-        # gebruik $skip-paginering om alle ~2500 woonplaatsen op te halen.
         skip = 0
         page_size = 1000
         while True:
@@ -312,31 +313,20 @@ def load_nl_plaatsnamen() -> list[str]:
                 break
             skip += page_size
 
-        # Dedupliceer en sorteer
         plaatsnamen = sorted(set(plaatsnamen))
         return plaatsnamen if plaatsnamen else _NL_PLAATSNAMEN_FALLBACK
 
     except Exception:
         return _NL_PLAATSNAMEN_FALLBACK
 
-# Laad de plaatsnamen eenmalig bij app-start (gecached)
 NL_PLAATSNAMEN = load_nl_plaatsnamen()
 
 @st.cache_data(ttl=300, show_spinner=False)
 def fetch_suggestions(query: str):
-    """
-    Fetch typo-tolerant address suggestions.
-    Strategie:
-      1. Fuzzy-match de invoer tegen bekende NL plaatsnamen — als een stad
-         duidelijk herkend wordt (score >= 75), vervang of vul aan in de query.
-      2. Probeer Photon API (Komoot) — tolerant voor typefouten, snel.
-      3. Val terug op Nominatim als Photon niks oplevert.
-    """
     q = query.strip()
     if len(q) < 3:
         return []
 
-    # Stap 1: fuzzy-correct bekende plaatsnamen in de query
     corrected_q = q
     words = q.split()
     corrected_words = []
@@ -351,7 +341,6 @@ def fetch_suggestions(query: str):
             corrected_words.append(word)
     corrected_q = " ".join(corrected_words)
 
-    # Stap 2: Photon API (typo-tolerant, geen key nodig)
     def _photon(search_q: str):
         url = "https://photon.komoot.io/api/"
         params = {"q": search_q, "limit": 6, "lang": "nl", "bbox": "3.2,50.7,7.3,53.6"}
@@ -362,7 +351,6 @@ def fetch_suggestions(query: str):
             results = []
             for f in features:
                 props = f.get("properties", {})
-                # Alleen Nederlandse resultaten
                 if props.get("countrycode", "").upper() != "NL":
                     continue
                 parts = [
@@ -380,7 +368,6 @@ def fetch_suggestions(query: str):
         except Exception:
             return []
 
-    # Stap 3: Nominatim fallback
     def _nominatim(search_q: str):
         url = "https://nominatim.openstreetmap.org/search"
         params = {
@@ -397,20 +384,14 @@ def fetch_suggestions(query: str):
         except Exception:
             return []
 
-    # Probeer eerst met gecorrigeerde query via Photon
     results = _photon(corrected_q)
-
-    # Als gecorrigeerde query niks geeft, probeer originele invoer via Photon
     if not results and corrected_q != q:
         results = _photon(q)
-
-    # Nog steeds niks? Nominatim als laatste redmiddel
     if not results:
         results = _nominatim(corrected_q)
     if not results and corrected_q != q:
         results = _nominatim(q)
 
-    # Dedupliceer terwijl volgorde bewaard blijft
     seen = set()
     unique = []
     for r in results:
@@ -423,11 +404,6 @@ def fetch_suggestions(query: str):
 
 # ==================== HULPFUNCTIES: ROUTING & DIJKSTRA =====================
 def _osrm_route(origin_lon, origin_lat, dest_lon, dest_lat):
-    """
-    Fetch a driving route from the public OSRM demo server.
-    Returns (road_distance_km, road_duration_min, route_coords) or (None, None, None) on failure.
-    route_coords is a list of {"lat": ..., "lon": ...} dicts decoded from the polyline geometry.
-    """
     url = (
         f"http://router.project-osrm.org/route/v1/driving/"
         f"{origin_lon},{origin_lat};{dest_lon},{dest_lat}"
@@ -451,9 +427,6 @@ def _osrm_route(origin_lon, origin_lat, dest_lon, dest_lat):
         return None, None, None
 
 def find_nearest_charger_dijkstra(user_lat, user_lon, df, tree, n_candidates=10):
-    """
-    Geo-based Dijkstra using real road distances via OSRM.
-    """
     R = 6371.0
 
     user_rad = np.radians([[user_lat, user_lon]])
@@ -521,7 +494,6 @@ tab3, tab1, tab2 = st.tabs(["📈  Voertuigregistraties", "🗺️  Laadpalen Ka
 
 # ==================== TAB 1: LAADPALEN KAART ===============================
 with tab1:
-    # ----- Filteropties -----
     col1, col2, col3 = st.columns([1, 2, 1])
 
     with col1:
@@ -545,7 +517,6 @@ with tab1:
 
     st.divider()
 
-    # ----- Kaartweergave -----
     if len(filtered_df) == 0:
         st.warning("Geen laadpalen gevonden voor deze selectie.")
     else:
@@ -571,7 +542,6 @@ with tab1:
             pickable=True,
         )
 
-        # ----- Provinciegrenzen laag (optioneel) -----
         layers = [scatter_layer]
 
         if filter_type == "Provincie" and gekozen and provincies_gdf is not None:
@@ -609,7 +579,6 @@ with tab2:
     st.markdown("### Vind de dichtstbijzijnde laadpaal")
     st.markdown("Voer een adres, plaatsnaam of postcode in. Het algoritme berekent de kortste route door het laadpalennetwerk.")
 
-    # ----- Session state initialiseren -----
     for _k, _v in [
         ("address_input",    ""),
         ("suggestions",      []),
@@ -621,8 +590,6 @@ with tab2:
 
     col_search, col_btn = st.columns([3, 1])
 
-    # Unieke key per versie zodat Streamlit het veld opnieuw initialiseert
-    # met de nieuwe waarde als een suggestie geselecteerd wordt.
     input_key = f"address_input_v{st.session_state['input_version']}"
 
     with col_search:
@@ -637,7 +604,6 @@ with tab2:
     with col_btn:
         search_clicked = st.button("⚡ Zoek Route", width="stretch")
 
-    # ----- Suggesties ophalen als de gebruiker typt -----
     if typed != st.session_state["address_input"]:
         st.session_state["address_input"]    = typed
         st.session_state["selected_address"] = ""
@@ -646,7 +612,6 @@ with tab2:
         else:
             st.session_state["suggestions"] = []
 
-    # ----- Suggesties tonen als klikbare knoppen -----
     suggestions = st.session_state["suggestions"]
     if suggestions and not st.session_state["selected_address"]:
         st.markdown(
@@ -665,10 +630,8 @@ with tab2:
                     st.session_state["input_version"]   += 1
                     st.rerun()
 
-    # ----- Bepaal het uiteindelijke adres voor de zoekopdracht -----
     final_address = st.session_state["selected_address"] or st.session_state["address_input"]
 
-    # ----- Zoekresultaten -----
     if search_clicked and final_address.strip():
         with st.spinner("Locatie zoeken en route berekenen..."):
             user_lat, user_lon, display_name = geocode_address(final_address.strip())
@@ -687,7 +650,6 @@ with tab2:
 
             dur_str = f"{road_dur:.0f} min" if road_dur is not None else "N/A"
 
-            # ----- Metrics -----
             st.markdown(f"""
             <div class="metric-row">
                 <div class="metric-box">
@@ -724,7 +686,6 @@ with tab2:
             </div>
             """, unsafe_allow_html=True)
 
-            # ----- Kaartlagen opbouwen -----
             all_chargers_map = df[['AddressInfo_Latitude', 'AddressInfo_Longitude',
                                    'AddressInfo_Title']].copy()
             all_chargers_map.columns = ['lat', 'lon', 'title']
@@ -848,12 +809,10 @@ with tab2:
 
 # ==================== TAB 3: VOERTUIGREGISTRATIES ====================
 with tab3:
-
     st.markdown('<div class="algo-badge">RDW OPEN DATA</div>', unsafe_allow_html=True)
     st.markdown("### Aandeel voertuigen per aandrijflijn")
     st.markdown("Cumulatief aandeel van het Nederlandse wagenpark per brandstofcategorie over de tijd.")
 
-    # --- Categorisering ---
     def categoriseer_brandstof(brandstof):
         if pd.isna(brandstof) or brandstof is None:
             return None
@@ -869,7 +828,6 @@ with tab3:
     df_cat = df_voer[df_voer["categorie"].notna()].copy()
     df_cat = df_cat[df_cat["jaar_maand"] >= "2005-01-01"]
 
-    # --- Groeperen en cumuleren ---
     df_groep = (
         df_cat
         .groupby(["jaar_maand", "categorie"])
@@ -879,145 +837,143 @@ with tab3:
     )
     df_groep["cumulatief"] = df_groep.groupby("categorie")["aantal"].cumsum()
 
-    # --- Percentage t.o.v. totaal lopend bestand per maand ---
     totaal_per_maand = df_groep.groupby("jaar_maand")["cumulatief"].transform("sum")
     df_groep["percentage"] = (df_groep["cumulatief"] / totaal_per_maand * 100).round(2)
 
-    # --- Kleurmap ---
     kleur_map = {
         "🔋 Volledig elektrisch": "#22c55e",
         "⛽ Fossiel":              "#64748b",
     }
 
-    # --- Snelle statistieken bovenaan ---
-    laatste_maand = df_groep["jaar_maand"].max()
-    laatste = df_groep[df_groep["jaar_maand"] == laatste_maand].set_index("categorie")
-
-    def pct(cat):
-        return f"{laatste.loc[cat, 'percentage']:.1f}%" if cat in laatste.index else "N/A"
-
-    col_a, col_c = st.columns(2)
-    with col_a:
-        st.markdown(f"""
-        <div class="metric-box" style="background:#0f172a; border:1px solid #22c55e; border-radius:10px;
-             padding:16px; text-align:center;">
-            <div class="label" style="font-size:11px; color:#64748b; text-transform:uppercase;
-                 letter-spacing:1px; font-family:'Space Mono',monospace;">Volledig elektrisch</div>
-            <div class="value" style="font-size:28px; font-weight:700; color:#22c55e;
-                 font-family:'Space Mono',monospace;">{pct("🔋 Volledig elektrisch")}</div>
-        </div>""", unsafe_allow_html=True)
-    with col_c:
-        st.markdown(f"""
-        <div class="metric-box" style="background:#0f172a; border:1px solid #64748b; border-radius:10px;
-             padding:16px; text-align:center;">
-            <div class="label" style="font-size:11px; color:#64748b; text-transform:uppercase;
-                 letter-spacing:1px; font-family:'Space Mono',monospace;">Fossiel</div>
-            <div class="value" style="font-size:28px; font-weight:700; color:#94a3b8;
-                 font-family:'Space Mono',monospace;">{pct("⛽ Fossiel")}</div>
-        </div>""", unsafe_allow_html=True)
-
-    st.markdown("<div style='margin-top:24px'></div>", unsafe_allow_html=True)
-
-    # --- Lijndiagram aandeel ---
-    # --- Slider jaar ---
-    min_datum = df_groep["jaar_maand"].min().year
-    max_datum = df_groep["jaar_maand"].max().year
-
-    jaar_range = st.slider(
-        "Selecteer tijdsbereik (jaren):",
-        min_value=min_datum,
-        max_value=max_datum,
-        value=(min_datum, max_datum)
-    )
-
-# Filter eerst op jaren
-    df_groep_jaar = df_groep[
-        (df_groep["jaar_maand"].dt.year >= jaar_range[0]) &
-        (df_groep["jaar_maand"].dt.year <= jaar_range[1])
-    ]
-
-# --- Slider maand (op basis van gekozen jaren) ---
-    min_maand = df_groep_jaar["jaar_maand"].min()
-    max_maand = df_groep_jaar["jaar_maand"].max()
-
-    maanden = pd.date_range(min_maand, max_maand, freq="MS").tolist()
-    maand_labels = [d.strftime("%b %Y") for d in maanden]
-
-    col_start, col_end = st.columns(2)
-    with col_start:
-        start_maand = st.selectbox("Van maand:", maand_labels, index=0)
-    with col_end:
-        eind_maand = st.selectbox("Tot maand:", maand_labels, index=len(maand_labels)-1)
-
-    start_dt = pd.to_datetime(start_maand, format="%b %Y")
-    eind_dt = pd.to_datetime(eind_maand, format="%b %Y")
-
-    df_groep_gefilterd = df_groep_jaar[
-        (df_groep_jaar["jaar_maand"] >= start_dt) &
-        (df_groep_jaar["jaar_maand"] <= eind_dt)
-    ]
-    if df_groep_gefilterd.empty:
-        st.warning("Geen data beschikbaar.")
+    # FIX 3: Check the grouped df before accessing metrics; guard with .get()
+    if df_groep.empty:
+        st.warning("Geen voertuigdata beschikbaar.")
     else:
-        fig_aandeel = px.line(
-            df_groep_gefilterd,
-            x="jaar_maand",
-            y="percentage",
-            color="categorie",
-            color_discrete_map=kleur_map,
-            labels={
-                "jaar_maand": "Datum",
-                "percentage": "Aandeel (%)",
-                "categorie": "Aandrijflijn"
-            },
-            template="plotly_dark",
+        laatste_maand = df_groep["jaar_maand"].max()
+        laatste = df_groep[df_groep["jaar_maand"] == laatste_maand].set_index("categorie")
+
+        def pct(cat):
+            return f"{laatste.loc[cat, 'percentage']:.1f}%" if cat in laatste.index else "N/A"
+
+        col_a, col_c = st.columns(2)
+        with col_a:
+            st.markdown(f"""
+            <div class="metric-box" style="background:#0f172a; border:1px solid #22c55e; border-radius:10px;
+                 padding:16px; text-align:center;">
+                <div class="label" style="font-size:11px; color:#64748b; text-transform:uppercase;
+                     letter-spacing:1px; font-family:'Space Mono',monospace;">Volledig elektrisch</div>
+                <div class="value" style="font-size:28px; font-weight:700; color:#22c55e;
+                     font-family:'Space Mono',monospace;">{pct("🔋 Volledig elektrisch")}</div>
+            </div>""", unsafe_allow_html=True)
+        with col_c:
+            st.markdown(f"""
+            <div class="metric-box" style="background:#0f172a; border:1px solid #64748b; border-radius:10px;
+                 padding:16px; text-align:center;">
+                <div class="label" style="font-size:11px; color:#64748b; text-transform:uppercase;
+                     letter-spacing:1px; font-family:'Space Mono',monospace;">Fossiel</div>
+                <div class="value" style="font-size:28px; font-weight:700; color:#94a3b8;
+                     font-family:'Space Mono',monospace;">{pct("⛽ Fossiel")}</div>
+            </div>""", unsafe_allow_html=True)
+
+        st.markdown("<div style='margin-top:24px'></div>", unsafe_allow_html=True)
+
+        min_datum = df_groep["jaar_maand"].min().year
+        max_datum = df_groep["jaar_maand"].max().year
+
+        jaar_range = st.slider(
+            "Selecteer tijdsbereik (jaren):",
+            min_value=min_datum,
+            max_value=max_datum,
+            value=(min_datum, max_datum)
         )
-        fig_aandeel.update_traces(line=dict(width=2.5))
-        fig_aandeel.update_layout(
-            paper_bgcolor="rgba(0,0,0,0)",
-            plot_bgcolor="rgba(15,23,42,1)",
-            font=dict(family="DM Sans", color="#94a3b8"),
-            legend_title="Aandrijflijn",
-            xaxis_title="Datum",
-            yaxis_title="Aandeel van lopend bestand (%)",
-            hovermode="x unified",
-            yaxis=dict(ticksuffix="%", gridcolor="#1e293b"),
-            xaxis=dict(gridcolor="#1e293b"),
-            height=460,
-            margin=dict(t=20, b=20),
-        )
-        st.plotly_chart(fig_aandeel, use_container_width=True)
 
-    st.divider()
+        df_groep_jaar = df_groep[
+            (df_groep["jaar_maand"].dt.year >= jaar_range[0]) &
+            (df_groep["jaar_maand"].dt.year <= jaar_range[1])
+        ]
 
-    # --- Absolute aantallen per categorie ---
-    st.markdown("### Absolute registraties per aandrijflijn")
+        min_maand = df_groep_jaar["jaar_maand"].min()
+        max_maand = df_groep_jaar["jaar_maand"].max()
 
-    fig_abs = px.line(
-        df_groep_gefilterd,
-        x="jaar_maand",
-        y="cumulatief",
-        color="categorie",
-        color_discrete_map=kleur_map,
-        labels={
-            "jaar_maand": "Datum",
-            "cumulatief": "Cumulatief aantal voertuigen",
-            "categorie": "Aandrijflijn"
-        },
-            template="plotly_dark",
-    )
-    fig_abs.update_traces(line=dict(width=2.5))
-    fig_abs.update_layout(
-        paper_bgcolor="rgba(0,0,0,0)",
-        plot_bgcolor="rgba(15,23,42,1)",
-        font=dict(family="DM Sans", color="#94a3b8"),
-        legend_title="Aandrijflijn",
-        xaxis_title="Datum",
-        yaxis_title="Cumulatief aantal",
-        hovermode="x unified",
-        yaxis=dict(gridcolor="#1e293b", tickformat=","),
-        xaxis=dict(gridcolor="#1e293b"),
-        height=420,
-        margin=dict(t=20, b=20),
-    )
-    st.plotly_chart(fig_abs, use_container_width=True)
+        maanden = pd.date_range(min_maand, max_maand, freq="MS").tolist()
+        maand_labels = [d.strftime("%b %Y") for d in maanden]
+
+        col_start, col_end = st.columns(2)
+        with col_start:
+            start_maand = st.selectbox("Van maand:", maand_labels, index=0)
+        with col_end:
+            eind_maand = st.selectbox("Tot maand:", maand_labels, index=len(maand_labels)-1)
+
+        start_dt = pd.to_datetime(start_maand, format="%b %Y")
+        eind_dt  = pd.to_datetime(eind_maand,  format="%b %Y")
+
+        df_groep_gefilterd = df_groep_jaar[
+            (df_groep_jaar["jaar_maand"] >= start_dt) &
+            (df_groep_jaar["jaar_maand"] <= eind_dt)
+        ]
+
+        # FIX 4: Guard both charts against an empty filtered dataframe
+        if df_groep_gefilterd.empty:
+            st.warning("Geen data beschikbaar voor de geselecteerde periode.")
+        else:
+            fig_aandeel = px.line(
+                df_groep_gefilterd,
+                x="jaar_maand",
+                y="percentage",
+                color="categorie",
+                color_discrete_map=kleur_map,
+                labels={
+                    "jaar_maand": "Datum",
+                    "percentage": "Aandeel (%)",
+                    "categorie": "Aandrijflijn"
+                },
+                template="plotly_dark",
+            )
+            fig_aandeel.update_traces(line=dict(width=2.5))
+            fig_aandeel.update_layout(
+                paper_bgcolor="rgba(0,0,0,0)",
+                plot_bgcolor="rgba(15,23,42,1)",
+                font=dict(family="DM Sans", color="#94a3b8"),
+                legend_title="Aandrijflijn",
+                xaxis_title="Datum",
+                yaxis_title="Aandeel van lopend bestand (%)",
+                hovermode="x unified",
+                yaxis=dict(ticksuffix="%", gridcolor="#1e293b"),
+                xaxis=dict(gridcolor="#1e293b"),
+                height=460,
+                margin=dict(t=20, b=20),
+            )
+            st.plotly_chart(fig_aandeel, use_container_width=True)
+
+            st.divider()
+
+            st.markdown("### Absolute registraties per aandrijflijn")
+
+            fig_abs = px.line(
+                df_groep_gefilterd,
+                x="jaar_maand",
+                y="cumulatief",
+                color="categorie",
+                color_discrete_map=kleur_map,
+                labels={
+                    "jaar_maand": "Datum",
+                    "cumulatief": "Cumulatief aantal voertuigen",
+                    "categorie": "Aandrijflijn"
+                },
+                template="plotly_dark",
+            )
+            fig_abs.update_traces(line=dict(width=2.5))
+            fig_abs.update_layout(
+                paper_bgcolor="rgba(0,0,0,0)",
+                plot_bgcolor="rgba(15,23,42,1)",
+                font=dict(family="DM Sans", color="#94a3b8"),
+                legend_title="Aandrijflijn",
+                xaxis_title="Datum",
+                yaxis_title="Cumulatief aantal",
+                hovermode="x unified",
+                yaxis=dict(gridcolor="#1e293b", tickformat=","),
+                xaxis=dict(gridcolor="#1e293b"),
+                height=420,
+                margin=dict(t=20, b=20),
+            )
+            st.plotly_chart(fig_abs, use_container_width=True)
