@@ -1409,7 +1409,7 @@ with tab3:
                     datum = bereikt["jaar_maand"].min()
                     mijlpalen.append({
                         "Mijlpaal":         f"{drempel}% elektrisch",
-                        "Voorspelde maand": datum.strftime("%B %Y"),
+                        "Voorspelde maand": datum_nl(beste_startdatum),
                     })
                 else:
                     mijlpalen.append({
