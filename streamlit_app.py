@@ -861,13 +861,13 @@ with tab1:
             if pd.isna(kw):
                 return [148, 163, 184, 200]   # grijs — onbekend
             elif kw < 22:
-                return [96, 165, 250, 220]    # blauw — langzaam
+                return [239, 68, 68, 220]    # rood — langzaam
             elif kw < 100:
-                return [250, 204, 21, 220]    # geel — snel
+                return [249, 115, 22, 220]    # oranje — snel
             elif kw < 150:
-                return [249, 115, 22, 220]    # oranje — supersnel
+                return [234, 179, 8, 220]    # geel — supersnel
             else:
-                return [239, 68, 68, 220]     # rood — ultrasnel
+                return [34, 197, 94, 220]     # groen — ultrasnel
 
         map_df['color'] = map_df['power_num'].apply(power_color)
         map_df['power'] = map_df['power'].fillna('N/A')
