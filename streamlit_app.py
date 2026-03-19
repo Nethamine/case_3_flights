@@ -390,7 +390,7 @@ st.markdown("""
         </p>
         <div class="intro-stats">
             <div class="stat-item">
-                <div class="stat-number">8134</div>
+                <div class="stat-number">8.134</div>
                 <div class="stat-label">Laadpunten in NL</div>
             </div>
             <div class="stat-item">
