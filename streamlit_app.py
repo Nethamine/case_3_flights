@@ -312,7 +312,7 @@ st.markdown("""
 }
 .stat-label {
     font-family: 'DM Sans', sans-serif;
-    font-size: 12px;
+    font-size: 16px;
     color: #475569;
     letter-spacing: 0.5px;
 }
