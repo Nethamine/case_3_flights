@@ -191,13 +191,11 @@ st.markdown("""
 st.markdown("""
 <style>
 .intro-wrap {
-    position: relative;
-    overflow: hidden;
-    background: #080f1a;
-    border-radius: 20px;
-    padding: 64px 56px 56px;
-    margin-bottom: 40px;
-    border: 1px solid #1e293b;
+    background: transparent !important;
+    border: none !important;
+    border-radius: 0 !important;
+    padding: 0 !important;
+}
 }
 .intro-wrap::before {
     content: '';
