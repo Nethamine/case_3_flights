@@ -186,6 +186,296 @@ st.markdown("""
     }
 </style>
 """, unsafe_allow_html=True)
+# ==================== INTRO PAGE ============================================
+# Plak dit blok DIRECT na de custom CSS (na regel 188) en VOOR de tabs (regel 537)
+# Verwijder of vervang de huidige st.markdown("# 🌱 Groene Mobiliteit Nederland") op regel 190
+
+intro_html = """
+<style>
+@import url('https://fonts.googleapis.com/css2?family=Space+Mono:wght@400;700&family=DM+Sans:wght@300;400;600&display=swap');
+
+/* ── Intro wrapper ── */
+.intro-wrap {
+    position: relative;
+    overflow: hidden;
+    background: #080f1a;
+    border-radius: 20px;
+    padding: 64px 56px 56px;
+    margin-bottom: 40px;
+    border: 1px solid #1e293b;
+}
+
+/* ── Animated grid background ── */
+.intro-wrap::before {
+    content: '';
+    position: absolute;
+    inset: 0;
+    background-image:
+        linear-gradient(rgba(34,197,94,0.04) 1px, transparent 1px),
+        linear-gradient(90deg, rgba(34,197,94,0.04) 1px, transparent 1px);
+    background-size: 40px 40px;
+    animation: gridPan 20s linear infinite;
+    pointer-events: none;
+}
+
+/* ── Glow blob ── */
+.intro-wrap::after {
+    content: '';
+    position: absolute;
+    top: -120px;
+    right: -80px;
+    width: 500px;
+    height: 500px;
+    background: radial-gradient(ellipse at center, rgba(34,197,94,0.12) 0%, transparent 70%);
+    pointer-events: none;
+    animation: pulse 6s ease-in-out infinite;
+}
+
+@keyframes gridPan {
+    0%   { background-position: 0 0; }
+    100% { background-position: 40px 40px; }
+}
+
+@keyframes pulse {
+    0%, 100% { opacity: 0.6; transform: scale(1); }
+    50%       { opacity: 1;   transform: scale(1.1); }
+}
+
+/* ── Content ── */
+.intro-inner {
+    position: relative;
+    z-index: 2;
+}
+
+.intro-label {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    background: rgba(34,197,94,0.1);
+    border: 1px solid rgba(34,197,94,0.3);
+    color: #22c55e;
+    font-family: 'Space Mono', monospace;
+    font-size: 11px;
+    letter-spacing: 2px;
+    text-transform: uppercase;
+    padding: 5px 14px;
+    border-radius: 999px;
+    margin-bottom: 28px;
+    animation: fadeUp 0.6s ease both;
+}
+
+.intro-dot {
+    width: 7px; height: 7px;
+    background: #22c55e;
+    border-radius: 50%;
+    animation: blink 1.4s ease-in-out infinite;
+}
+
+@keyframes blink {
+    0%, 100% { opacity: 1; }
+    50%       { opacity: 0.2; }
+}
+
+.intro-title {
+    font-family: 'Space Mono', monospace;
+    font-size: clamp(32px, 4vw, 52px);
+    font-weight: 700;
+    line-height: 1.1;
+    letter-spacing: -1px;
+    color: #f1f5f9;
+    margin: 0 0 6px;
+    animation: fadeUp 0.6s 0.1s ease both;
+}
+
+.intro-title span {
+    color: #22c55e;
+}
+
+.intro-sub {
+    font-family: 'DM Sans', sans-serif;
+    font-size: 18px;
+    font-weight: 300;
+    color: #64748b;
+    margin: 0 0 40px;
+    max-width: 560px;
+    line-height: 1.6;
+    animation: fadeUp 0.6s 0.2s ease both;
+}
+
+/* ── Stats row ── */
+.intro-stats {
+    display: flex;
+    gap: 0;
+    margin-bottom: 44px;
+    border: 1px solid #1e293b;
+    border-radius: 12px;
+    overflow: hidden;
+    animation: fadeUp 0.6s 0.3s ease both;
+}
+
+.stat-item {
+    flex: 1;
+    padding: 22px 24px;
+    background: rgba(15,23,42,0.8);
+    border-right: 1px solid #1e293b;
+    transition: background 0.2s;
+}
+
+.stat-item:last-child { border-right: none; }
+.stat-item:hover { background: rgba(34,197,94,0.05); }
+
+.stat-number {
+    font-family: 'Space Mono', monospace;
+    font-size: 28px;
+    font-weight: 700;
+    color: #22c55e;
+    line-height: 1;
+    margin-bottom: 4px;
+}
+
+.stat-label {
+    font-family: 'DM Sans', sans-serif;
+    font-size: 12px;
+    color: #475569;
+    letter-spacing: 0.5px;
+}
+
+/* ── Feature cards ── */
+.intro-features {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 12px;
+    animation: fadeUp 0.6s 0.4s ease both;
+}
+
+.feature-card {
+    background: rgba(15,23,42,0.6);
+    border: 1px solid #1e293b;
+    border-radius: 10px;
+    padding: 20px;
+    transition: all 0.25s;
+    cursor: default;
+}
+
+.feature-card:hover {
+    border-color: rgba(34,197,94,0.4);
+    background: rgba(34,197,94,0.05);
+    transform: translateY(-2px);
+}
+
+.feature-icon {
+    font-size: 26px;
+    margin-bottom: 10px;
+    display: block;
+}
+
+.feature-title {
+    font-family: 'Space Mono', monospace;
+    font-size: 12px;
+    font-weight: 700;
+    color: #e2e8f0;
+    letter-spacing: 0.5px;
+    margin-bottom: 6px;
+    text-transform: uppercase;
+}
+
+.feature-desc {
+    font-family: 'DM Sans', sans-serif;
+    font-size: 13px;
+    color: #475569;
+    line-height: 1.5;
+}
+
+/* ── Scroll hint ── */
+.scroll-hint {
+    text-align: center;
+    margin-top: 40px;
+    font-family: 'Space Mono', monospace;
+    font-size: 11px;
+    letter-spacing: 2px;
+    color: #334155;
+    text-transform: uppercase;
+    animation: fadeUp 0.6s 0.5s ease both, bounce 2s 2s ease-in-out infinite;
+}
+
+@keyframes fadeUp {
+    from { opacity: 0; transform: translateY(16px); }
+    to   { opacity: 1; transform: translateY(0); }
+}
+
+@keyframes bounce {
+    0%, 100% { transform: translateY(0); }
+    50%       { transform: translateY(5px); }
+}
+</style>
+
+<div class="intro-wrap">
+    <div class="intro-inner">
+
+        <div class="intro-label">
+            <span class="intro-dot"></span>
+            Live · Nederland · 2025
+        </div>
+
+        <h1 class="intro-title">Groene<br><span>Mobiliteit</span><br>Nederland</h1>
+        <p class="intro-sub">
+            Interactief dashboard voor laadpalen, elektrische voertuigen
+            en de energietransitie op de Nederlandse weg.
+        </p>
+
+        <div class="intro-stats">
+            <div class="stat-item">
+                <div class="stat-number">75K+</div>
+                <div class="stat-label">Laadpunten in NL</div>
+            </div>
+            <div class="stat-item">
+                <div class="stat-number">700K+</div>
+                <div class="stat-label">Elektrische voertuigen</div>
+            </div>
+            <div class="stat-item">
+                <div class="stat-number">12</div>
+                <div class="stat-label">Provincies in kaart</div>
+            </div>
+            <div class="stat-item">
+                <div class="stat-number">2050</div>
+                <div class="stat-label">Voorspelling horizon</div>
+            </div>
+        </div>
+
+        <div class="intro-features">
+            <div class="feature-card">
+                <span class="feature-icon">📈</span>
+                <div class="feature-title">Voertuigregistraties</div>
+                <div class="feature-desc">
+                    Historische groei van elektrisch vs. fossiel rijden,
+                    inclusief lineaire regressie tot 2050.
+                </div>
+            </div>
+            <div class="feature-card">
+                <span class="feature-icon">🗺️</span>
+                <div class="feature-title">Laadpalen Kaart</div>
+                <div class="feature-desc">
+                    Interactieve kaart van alle publieke laadpunten,
+                    gefilterd per provincie en aansluittype.
+                </div>
+            </div>
+            <div class="feature-card">
+                <span class="feature-icon">🔍</span>
+                <div class="feature-title">Laadpalen Dichtbij</div>
+                <div class="feature-desc">
+                    Vind de dichtstbijzijnde laadpalen op basis van
+                    jouw locatie via slim zoeken met Dijkstra & KNN.
+                </div>
+            </div>
+        </div>
+
+    </div>
+</div>
+
+<div class="scroll-hint">↓ &nbsp; Kies een tab om te beginnen &nbsp; ↓</div>
+"""
+
+st.markdown(intro_html, unsafe_allow_html=True)
 
 st.markdown("# 🌱 Groene Mobiliteit Nederland")
 
