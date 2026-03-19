@@ -1389,7 +1389,7 @@ with tab3:
                 fig_ratio.add_annotation(
                     x=kruis_datum,
                     y=kruis_pct,
-                    text=f"⚡ {datum_nl(kruis_datum)}",
+                    text=f"⚡ {kruis_datum.strftime('%B %Y')}",
                     showarrow=True,
                     arrowhead=2,
                     arrowcolor="#22c55e",
