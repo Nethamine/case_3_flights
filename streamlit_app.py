@@ -188,8 +188,6 @@ st.markdown("""
 """, unsafe_allow_html=True)
 
 # ==================== INTRO PAGE ============================================
-# ==================== INTRO PAGE ============================================
-# Stap 1: CSS apart injecteren
 st.markdown("""
 <style>
 .intro-wrap {
@@ -338,12 +336,12 @@ st.markdown("""
 }
 .feature-icon {
     font-size: 26px;
-    margin-bottom: 10px;
+    margin-bottom: 14px;
     display: block;
 }
 .feature-title {
     font-family: 'Space Mono', monospace;
-    font-size: 12px;
+    font-size: 18px;
     font-weight: 700;
     color: #e2e8f0;
     letter-spacing: 0.5px;
@@ -352,7 +350,7 @@ st.markdown("""
 }
 .feature-desc {
     font-family: 'DM Sans', sans-serif;
-    font-size: 13px;
+    font-size: 16px;
     color: #475569;
     line-height: 1.5;
 }
@@ -378,7 +376,6 @@ st.markdown("""
 </style>
 """, unsafe_allow_html=True)
 
-# Stap 2: HTML apart injecteren
 st.markdown("""
 <div class="intro-wrap">
     <div class="intro-inner">
