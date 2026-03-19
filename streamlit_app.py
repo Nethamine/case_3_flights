@@ -1145,7 +1145,7 @@ with tab2:
 with tab3:
     st.markdown('<div class="algo-badge">RDW OPEN DATA</div>', unsafe_allow_html=True)
     st.markdown("### Aandeel voertuigen per brandstoftype")
-    st.markdown("Cumulatief aandeel van het Nederlandse wagenpark per brandstofcategorie over de tijd.")
+    st.markdown("Cumulatief aandeel van de Nederlandse automarkt per brandstofcategorie over de tijd.")
 
     from sklearn.linear_model import LinearRegression
     from sklearn.metrics import r2_score
@@ -1412,7 +1412,7 @@ with tab3:
                 font=dict(family="DM Sans", color="#94a3b8"),
                 legend_title="Brandstoftype",
                 xaxis_title="Datum",
-                yaxis_title="Aandeel van wagenpark (%)",
+                yaxis_title="Aandeel van automarkt (%)",
                 hovermode="x unified",
                 yaxis=dict(ticksuffix="%", gridcolor="#1e293b", range=[0, 100]),
                 xaxis=dict(gridcolor="#1e293b"),
@@ -1461,7 +1461,6 @@ with tab3:
                 <strong style="color:#22c55e;">{beste_startdatum.strftime('%B %Y')} (R² = {beste_r2:.4f})</strong>.
                 Omdat elektrisch en fossiel optellen tot 100% is dit startpunt optimaal voor
                 <em>beide</em> categorieën tegelijk — de regressie beschrijft de volledige
-                transitie in het wagenpark. Lineaire regressie houdt geen rekening met
-                beleidsveranderingen of verzadigingseffecten.
+                transitie in de automarkt.
             </div>
             """, unsafe_allow_html=True)
