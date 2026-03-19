@@ -1319,7 +1319,7 @@ with tab3:
                 f"<span style='font-family:Space Mono,monospace; font-size:12px; color:#64748b;'>"
                 f"BESTE STARTPUNT: </span>"
                 f"<span style='font-family:Space Mono,monospace; font-size:12px; color:#22c55e;'>"
-                f"{beste_startdatum.strftime('%B %Y')} &nbsp;|&nbsp; R² = {beste_r2:.4f}"
+                f"{datum_nl(beste_startdatum)} &nbsp;|&nbsp; R² = {beste_r2:.4f}"
                 f"</span></div>",
                 unsafe_allow_html=True,
             )
@@ -1432,7 +1432,7 @@ with tab3:
                 Het startpunt van de regressie wordt automatisch bepaald via een rollend R²-venster:
                 elk mogelijk startpunt vanaf januari 2018 wordt geëvalueerd (minimaal 12 maanden data),
                 en het punt met de hoogste R² wordt gekozen —
-                <strong style="color:#22c55e;">{beste_startdatum.strftime('%B %Y')} (R² = {beste_r2:.4f})</strong>.
+                <strong style="color:#22c55e;">{datum_nl(beste_startdatum)} (R² = {beste_r2:.4f})</strong>.
                 Omdat elektrisch en fossiel optellen tot 100% is dit startpunt optimaal voor
                 <em>beide</em> categorieën tegelijk — de regressie beschrijft de volledige
                 transitie in het wagenpark. Lineaire regressie houdt geen rekening met
