@@ -130,7 +130,6 @@ st.markdown("""
         box-shadow: 0 4px 20px rgba(34,197,94,0.4);
     }
 
-    /* Suggestion buttons — subtler style */
     div[data-testid="stHorizontalBlock"] div[data-testid="stButton"] button {
         background: #1e293b !important;
         color: #94a3b8 !important;
@@ -224,43 +223,38 @@ def load_data():
         df['Provincie'] = 'Onbekend'
         return df, None
 
-# FIX 1 & 2: Robust date parsing that handles datetime64, integer (20210315),
-# and ISO string (2021-03-15) formats without slicing blindly.
+
 @st.cache_data
 def load_voertuigen():
     df = pd.read_parquet('rdw_voertuigen.parquet')
 
     raw = df["datum_eerste_toelating"]
 
-    # If the column is already a proper datetime dtype, use it as-is.
     if pd.api.types.is_datetime64_any_dtype(raw):
         df["datum_eerste_toelating"] = raw
     else:
         raw_str = raw.astype(str).str.strip()
-        # Detect format: pure 8-digit integers (20210315) vs ISO strings (2021-03-15)
         sample = raw_str.dropna().iloc[0] if not raw_str.dropna().empty else ""
         if len(sample) >= 8 and sample[:8].isdigit() and "-" not in sample[:8]:
-            # Integer-encoded date: take first 8 chars and parse as YYYYMMDD
             df["datum_eerste_toelating"] = pd.to_datetime(
                 raw_str.str[:8], format="%Y%m%d", errors="coerce"
             )
         else:
-            # ISO or other string format — let pandas infer
             df["datum_eerste_toelating"] = pd.to_datetime(raw_str, errors="coerce")
 
     df["jaar_maand"] = df["datum_eerste_toelating"].dt.to_period("M").dt.to_timestamp()
     return df
 
+
 @st.cache_resource
 def build_balltree(_df):
-    """Build a BallTree spatial index over all charging station coordinates."""
     coords_rad = np.radians(_df[['AddressInfo_Latitude', 'AddressInfo_Longitude']].values)
     tree = BallTree(coords_rad, metric='haversine')
     return tree
 
+
 # ==================== HULPFUNCTIES: GEOCODING & AUTOCOMPLETE ===============
 def geocode_address(address: str):
-    """Geocode address using Nominatim (free, no key needed)."""
     url = "https://nominatim.openstreetmap.org/search"
     params = {"q": address + ", Netherlands", "format": "json", "limit": 1}
     headers = {"User-Agent": "LaadpalenNL-StreamlitApp/1.0"}
@@ -273,7 +267,7 @@ def geocode_address(address: str):
         pass
     return None, None, None
 
-# ── Fallback: basislijst als de CBS API onbereikbaar is ─────────────────────
+
 _NL_PLAATSNAMEN_FALLBACK = [
     "Amsterdam", "Rotterdam", "Den Haag", "Utrecht", "Eindhoven", "Tilburg",
     "Groningen", "Almere", "Breda", "Nijmegen", "Enschede", "Haarlem",
@@ -284,6 +278,7 @@ _NL_PLAATSNAMEN_FALLBACK = [
     "Vlaardingen", "Schiedam", "Spijkenisse", "Lelystad", "Bergen op Zoom",
     "Hoorn", "Velsen", "Ede", "Gouda", "Westland", "Meierijstad",
 ]
+
 
 @st.cache_data(ttl=86400, show_spinner=False)
 def load_nl_plaatsnamen() -> list[str]:
@@ -319,7 +314,9 @@ def load_nl_plaatsnamen() -> list[str]:
     except Exception:
         return _NL_PLAATSNAMEN_FALLBACK
 
+
 NL_PLAATSNAMEN = load_nl_plaatsnamen()
+
 
 @st.cache_data(ttl=300, show_spinner=False)
 def fetch_suggestions(query: str):
@@ -327,7 +324,6 @@ def fetch_suggestions(query: str):
     if len(q) < 3:
         return []
 
-    corrected_q = q
     words = q.split()
     corrected_words = []
     for word in words:
@@ -402,6 +398,7 @@ def fetch_suggestions(query: str):
 
     return unique[:6]
 
+
 # ==================== HULPFUNCTIES: ROUTING & DIJKSTRA =====================
 def _osrm_route(origin_lon, origin_lat, dest_lon, dest_lat):
     url = (
@@ -425,6 +422,7 @@ def _osrm_route(origin_lon, origin_lat, dest_lon, dest_lat):
         return dist_km, dur_min, coords
     except Exception:
         return None, None, None
+
 
 def find_nearest_charger_dijkstra(user_lat, user_lon, df, tree, n_candidates=10):
     R = 6371.0
@@ -486,7 +484,6 @@ def find_nearest_charger_dijkstra(user_lat, user_lon, df, tree, n_candidates=10)
 # ==================== APP OPSTARTEN ========================================
 df, provincies_gdf = load_data()
 df_voer = load_voertuigen()
-
 ball_tree = build_balltree(df)
 
 # ==================== TABS =================================================
@@ -807,7 +804,7 @@ with tab2:
         </div>
         """, unsafe_allow_html=True)
 
-# ==================== TAB 3: VOERTUIGREGISTRATIES ====================
+# ==================== TAB 3: VOERTUIGREGISTRATIES ==========================
 with tab3:
     st.markdown('<div class="algo-badge">RDW OPEN DATA</div>', unsafe_allow_html=True)
     st.markdown("### Aandeel voertuigen per aandrijflijn")
@@ -845,38 +842,9 @@ with tab3:
         "⛽ Fossiel":              "#64748b",
     }
 
-    # FIX 3: Check the grouped df before accessing metrics; guard with .get()
     if df_groep.empty:
         st.warning("Geen voertuigdata beschikbaar.")
     else:
-        laatste_maand = df_groep["jaar_maand"].max()
-        laatste = df_groep[df_groep["jaar_maand"] == laatste_maand].set_index("categorie")
-
-        def pct(cat):
-            return f"{laatste.loc[cat, 'percentage']:.1f}%" if cat in laatste.index else "N/A"
-
-        col_a, col_c = st.columns(2)
-        with col_a:
-            st.markdown(f"""
-            <div class="metric-box" style="background:#0f172a; border:1px solid #22c55e; border-radius:10px;
-                 padding:16px; text-align:center;">
-                <div class="label" style="font-size:11px; color:#64748b; text-transform:uppercase;
-                     letter-spacing:1px; font-family:'Space Mono',monospace;">Volledig elektrisch</div>
-                <div class="value" style="font-size:28px; font-weight:700; color:#22c55e;
-                     font-family:'Space Mono',monospace;">{pct("🔋 Volledig elektrisch")}</div>
-            </div>""", unsafe_allow_html=True)
-        with col_c:
-            st.markdown(f"""
-            <div class="metric-box" style="background:#0f172a; border:1px solid #64748b; border-radius:10px;
-                 padding:16px; text-align:center;">
-                <div class="label" style="font-size:11px; color:#64748b; text-transform:uppercase;
-                     letter-spacing:1px; font-family:'Space Mono',monospace;">Fossiel</div>
-                <div class="value" style="font-size:28px; font-weight:700; color:#94a3b8;
-                     font-family:'Space Mono',monospace;">{pct("⛽ Fossiel")}</div>
-            </div>""", unsafe_allow_html=True)
-
-        st.markdown("<div style='margin-top:24px'></div>", unsafe_allow_html=True)
-
         min_datum = df_groep["jaar_maand"].min().year
         max_datum = df_groep["jaar_maand"].max().year
 
@@ -887,35 +855,44 @@ with tab3:
             value=(min_datum, max_datum)
         )
 
-        df_groep_jaar = df_groep[
+        df_groep_gefilterd = df_groep[
             (df_groep["jaar_maand"].dt.year >= jaar_range[0]) &
             (df_groep["jaar_maand"].dt.year <= jaar_range[1])
         ]
 
-        min_maand = df_groep_jaar["jaar_maand"].min()
-        max_maand = df_groep_jaar["jaar_maand"].max()
-
-        maanden = pd.date_range(min_maand, max_maand, freq="MS").tolist()
-        maand_labels = [d.strftime("%b %Y") for d in maanden]
-
-        col_start, col_end = st.columns(2)
-        with col_start:
-            start_maand = st.selectbox("Van maand:", maand_labels, index=0)
-        with col_end:
-            eind_maand = st.selectbox("Tot maand:", maand_labels, index=len(maand_labels)-1)
-
-        start_dt = pd.to_datetime(start_maand, format="%b %Y")
-        eind_dt  = pd.to_datetime(eind_maand,  format="%b %Y")
-
-        df_groep_gefilterd = df_groep_jaar[
-            (df_groep_jaar["jaar_maand"] >= start_dt) &
-            (df_groep_jaar["jaar_maand"] <= eind_dt)
-        ]
-
-        # FIX 4: Guard both charts against an empty filtered dataframe
         if df_groep_gefilterd.empty:
             st.warning("Geen data beschikbaar voor de geselecteerde periode.")
         else:
+            laatste_maand_gefilterd = df_groep_gefilterd["jaar_maand"].max()
+            laatste = df_groep_gefilterd[
+                df_groep_gefilterd["jaar_maand"] == laatste_maand_gefilterd
+            ].set_index("categorie")
+
+            def pct(cat):
+                return f"{laatste.loc[cat, 'percentage']:.1f}%" if cat in laatste.index else "N/A"
+
+            col_a, col_c = st.columns(2)
+            with col_a:
+                st.markdown(f"""
+                <div class="metric-box" style="background:#0f172a; border:1px solid #22c55e; border-radius:10px;
+                     padding:16px; text-align:center;">
+                    <div class="label" style="font-size:11px; color:#64748b; text-transform:uppercase;
+                         letter-spacing:1px; font-family:'Space Mono',monospace;">Volledig elektrisch</div>
+                    <div class="value" style="font-size:28px; font-weight:700; color:#22c55e;
+                         font-family:'Space Mono',monospace;">{pct("🔋 Volledig elektrisch")}</div>
+                </div>""", unsafe_allow_html=True)
+            with col_c:
+                st.markdown(f"""
+                <div class="metric-box" style="background:#0f172a; border:1px solid #64748b; border-radius:10px;
+                     padding:16px; text-align:center;">
+                    <div class="label" style="font-size:11px; color:#64748b; text-transform:uppercase;
+                         letter-spacing:1px; font-family:'Space Mono',monospace;">Fossiel</div>
+                    <div class="value" style="font-size:28px; font-weight:700; color:#94a3b8;
+                         font-family:'Space Mono',monospace;">{pct("⛽ Fossiel")}</div>
+                </div>""", unsafe_allow_html=True)
+
+            st.markdown("<div style='margin-top:24px'></div>", unsafe_allow_html=True)
+
             fig_aandeel = px.line(
                 df_groep_gefilterd,
                 x="jaar_maand",
