@@ -497,7 +497,7 @@ with tab1:
     col1, col2, col3 = st.columns([1, 2, 1])
 
     with col1:
-        filter_type = st.radio("Bekijken per:", ["Alle locaties", "Provincie", "Gemeente"])
+        filter_type = st.radio("Bekijken per:", ["Alle locaties", "Provincie", "Plaats"])
 
     with col2:
         filtered_df = df.copy()
