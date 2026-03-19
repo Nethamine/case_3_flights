@@ -12,7 +12,15 @@ import plotly.express as px
 from shapely.geometry import Point
 from sklearn.neighbors import BallTree
 from thefuzz import process as fuzz_process
+# ==================== HULPFUNCTIES DATUM ==================================
+MAANDEN_NL = {
+    1: "januari", 2: "februari", 3: "maart", 4: "april",
+    5: "mei", 6: "juni", 7: "juli", 8: "augustus",
+    9: "september", 10: "oktober", 11: "november", 12: "december"
+}
 
+def datum_nl(ts):
+    return f"{MAANDEN_NL[ts.month]} {ts.year}"
 # ==================== PAGINA INSTELLINGEN ==================================
 st.set_page_config(page_title="Groene Mobiliteit Nederland", page_icon="🌱", layout="wide")
 
