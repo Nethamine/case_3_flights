@@ -1216,7 +1216,7 @@ with tab3:
 
             # ── 1. CUMULATIEF ────────────────────────────────────────────────
             st.markdown("### Registraties per brandstoftype")
-
+            st.info("⚠️ Deze grafiek is gebaseerd op 7,1 miljoen voertuigregistraties uit de RDW dataset — dit is een subset van het volledige Nederlandse aantal.")
             fig_abs = px.line(
                 df_groep_gefilterd,
                 x="jaar_maand",
@@ -1233,7 +1233,7 @@ with tab3:
                 font=dict(family="DM Sans", color="#94a3b8"),
                 legend_title="Brandstoftype",
                 xaxis_title="Datum",
-                yaxis_title="Cumulatief aantal",
+                yaxis_title="Cumulatief aantal auto's",
                 hovermode="x unified",
                 yaxis=dict(gridcolor="#1e293b", tickformat=","),
                 xaxis=dict(gridcolor="#1e293b"),
