@@ -947,7 +947,7 @@ with tab3:
 
             st.divider()
 
-            st.markdown("### Absolute registraties per aandrijflijn")
+            st.markdown("### Registraties per aandrijflijn")
 
             fig_abs = px.line(
                 df_groep_gefilterd,
