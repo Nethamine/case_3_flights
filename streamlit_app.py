@@ -312,7 +312,7 @@ st.markdown("""
 }
 .stat-label {
     font-family: 'DM Sans', sans-serif;
-    font-size: 16px;
+    font-size: 18px;
     color: #475569;
     letter-spacing: 0.5px;
 }
@@ -341,17 +341,17 @@ st.markdown("""
 }
 .feature-title {
     font-family: 'Space Mono', monospace;
-    font-size: 18px;
+    font-size: 20px;
     font-weight: 700;
-    color: #e2e8f0;
+    color: #22c55e !important;
     letter-spacing: 0.5px;
     margin-bottom: 6px;
     text-transform: uppercase;
 }
 .feature-desc {
     font-family: 'DM Sans', sans-serif;
-    font-size: 16px;
-    color: #475569;
+    font-size: 18px;
+    color: #94a3b8 !important;
     line-height: 1.5;
 }
 .scroll-hint {
