@@ -186,10 +186,8 @@ st.markdown("""
     }
 </style>
 """, unsafe_allow_html=True)
-# ==================== INTRO PAGE ============================================
-# Plak dit blok DIRECT na de custom CSS (na regel 188) en VOOR de tabs (regel 537)
-# Verwijder of vervang de huidige st.markdown("# 🌱 Groene Mobiliteit Nederland") op regel 190
 
+# ==================== INTRO PAGE ============================================
 intro_html = """
 <style>
 @import url('https://fonts.googleapis.com/css2?family=Space+Mono:wght@400;700&family=DM+Sans:wght@300;400;600&display=swap');
