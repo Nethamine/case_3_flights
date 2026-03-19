@@ -1216,7 +1216,7 @@ with tab3:
 
             # ── 1. CUMULATIEF ────────────────────────────────────────────────
             st.markdown("### Registraties per brandstoftype")
-            st.info("⚠️ Deze grafiek is gebaseerd op 7,1 miljoen voertuigregistraties uit de RDW dataset — dit is een subset van het volledige Nederlandse aantal.")
+            st.info("⚠️ De grafieken hieronder zijn gebaseerd op 7,1 miljoen voertuigregistraties uit de RDW dataset. Dit is een subset van het volledige Nederlandse aantal.")
             fig_abs = px.line(
                 df_groep_gefilterd,
                 x="jaar_maand",
