@@ -13,7 +13,6 @@ from shapely.geometry import Point
 from sklearn.neighbors import BallTree
 from thefuzz import process as fuzz_process
 
-st.cache_data.clear()
 # ==================== PAGINA INSTELLINGEN ==================================
 st.set_page_config(page_title="Groene Mobiliteit Nederland", page_icon="🌱", layout="wide")
 
@@ -391,7 +390,7 @@ st.markdown("""
         </p>
         <div class="intro-stats">
             <div class="stat-item">
-                <div class="stat-number">8134+</div>
+                <div class="stat-number">8134</div>
                 <div class="stat-label">Laadpunten in NL</div>
             </div>
             <div class="stat-item">
