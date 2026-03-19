@@ -373,6 +373,18 @@ st.markdown("""
     0%, 100% { transform: translateY(0); }
     50%       { transform: translateY(5px); }
 }
+            .stApp {
+    background: transparent !important;
+}
+
+section[data-testid="stAppViewContainer"] {
+    background: transparent !important;
+}
+
+.block-container {
+    background: transparent !important;
+    padding-top: 1rem !important;
+}         
 </style>
 """, unsafe_allow_html=True)
 
