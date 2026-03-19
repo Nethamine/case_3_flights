@@ -1166,19 +1166,18 @@ with tab3:
     if df_groep.empty:
         st.warning("Geen voertuigdata beschikbaar.")
     else:
-        min_datum = df_groep["jaar_maand"].min().year
-        max_datum = df_groep["jaar_maand"].max().year
+        alle_maanden = sorted(df_groep["jaar_maand"].unique())
 
-        jaar_range = st.slider(
-            "Selecteer tijdsbereik (jaren):",
-            min_value=min_datum,
-            max_value=max_datum,
-            value=(min_datum, max_datum)
+        geselecteerde_maanden = st.select_slider(
+            "Selecteer tijdsbereik:",
+            options=alle_maanden,
+            value=(alle_maanden[0], alle_maanden[-1]),
+            format_func=lambda x: pd.Timestamp(x).strftime("%b %Y"),
         )
 
         df_groep_gefilterd = df_groep[
-            (df_groep["jaar_maand"].dt.year >= jaar_range[0]) &
-            (df_groep["jaar_maand"].dt.year <= jaar_range[1])
+            (df_groep["jaar_maand"] >= geselecteerde_maanden[0]) &
+            (df_groep["jaar_maand"] <= geselecteerde_maanden[1])
         ]
 
         if df_groep_gefilterd.empty:
@@ -1213,7 +1212,6 @@ with tab3:
                 </div>""", unsafe_allow_html=True)
 
             st.markdown("<div style='margin-top:24px'></div>", unsafe_allow_html=True)
-
             # ── 1. CUMULATIEF ────────────────────────────────────────────────
             st.markdown("### Registraties per brandstoftype")
             st.info(" De grafieken hieronder zijn gebaseerd op 7,1 miljoen voertuigregistraties uit de RDW dataset. Dit is een subset van het volledige Nederlandse aantal.")
