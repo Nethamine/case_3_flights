@@ -1097,7 +1097,7 @@ with tab3:
 
             # Verticale lijn op vandaag
             fig_pred.add_vline(
-                x=pd.Timestamp("today"),
+                x=pd.Timestamp("today").timestamp() * 1000,
                 line_dash="dash",
                 line_color="#fbbf24",
                 annotation_text="Vandaag",
@@ -1159,7 +1159,7 @@ with tab3:
             )
             fig_ratio.update_traces(line=dict(width=2.5))
             fig_ratio.add_vline(
-                x=pd.Timestamp("today"),
+                x=pd.Timestamp("today").timestamp() * 1000,
                 line_dash="dash",
                 line_color="#fbbf24",
                 annotation_text="Vandaag",
