@@ -1034,7 +1034,8 @@ with tab3:
 
             # ── helper: regressie + voorspelling ────────────────────────────
             def voorspel(df_cat: pd.DataFrame, categorie: str) -> pd.DataFrame:
-                sub = df_cat[df_cat["categorie"] == categorie].copy()
+                sub = df_cat[(df_cat["categorie"] == categorie) &
+                (df_cat["jaar_maand"] >= pd.Timestamp("2024-01-01")) ].copy()
                 if sub.empty:
                     return pd.DataFrame()
 
