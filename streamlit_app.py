@@ -1216,7 +1216,7 @@ with tab3:
 
             # ── 1. CUMULATIEF ────────────────────────────────────────────────
             st.markdown("### Registraties per brandstoftype")
-            st.info("⚠️ De grafieken hieronder zijn gebaseerd op 7,1 miljoen voertuigregistraties uit de RDW dataset. Dit is een subset van het volledige Nederlandse aantal.")
+            st.info(" De grafieken hieronder zijn gebaseerd op 7,1 miljoen voertuigregistraties uit de RDW dataset. Dit is een subset van het volledige Nederlandse aantal.")
             fig_abs = px.line(
                 df_groep_gefilterd,
                 x="jaar_maand",
@@ -1275,7 +1275,7 @@ with tab3:
             st.divider()
 
             # ── 3. VOORSPELLING ──────────────────────────────────────────────
-            st.markdown("### 🔮 Voorspelling verhouding tot 2050")
+            st.markdown("###  Voorspelling verhouding tot 2050")
 
             elek = df_groep[df_groep["categorie"] == "🔋 Volledig elektrisch"].copy()
             elek = elek[elek["jaar_maand"] >= pd.Timestamp("2018-01-01")]
@@ -1422,7 +1422,7 @@ with tab3:
             st.plotly_chart(fig_ratio, use_container_width=True)
 
             # ── mijlpalen tabel ──────────────────────────────────────────────
-            st.markdown("### 📅 Voorspelde mijlpalen elektrisch")
+            st.markdown("###  Voorspelde mijlpalen elektrisch")
 
             mijlpalen = []
             elek_pred = df_ratio[
