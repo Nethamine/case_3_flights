@@ -226,11 +226,7 @@ def load_data():
 
 @st.cache_data
 def load_voertuigen():
-    df = pd.read_parquet(
-        'rdw_voertuigen.parquet',
-        columns=['datum_eerste_toelating', 'brandstof_omschrijving'],
-        engine='pyarrow'
-    )
+    df = pd.read_parquet('rdw_voertuigen.parquet')
 
     raw = df["datum_eerste_toelating"]
 
