@@ -1144,7 +1144,7 @@ with tab2:
 # ==================== TAB 3: VOERTUIGREGISTRATIES ==========================
 with tab3:
     st.markdown('<div class="algo-badge">RDW OPEN DATA</div>', unsafe_allow_html=True)
-    st.markdown("### Aandeel voertuigen per aandrijflijn")
+    st.markdown("### Aandeel voertuigen per brandstoftype")
     st.markdown("Cumulatief aandeel van het Nederlandse wagenpark per brandstofcategorie over de tijd.")
 
     from sklearn.linear_model import LinearRegression
@@ -1215,7 +1215,7 @@ with tab3:
             st.markdown("<div style='margin-top:24px'></div>", unsafe_allow_html=True)
 
             # ── 1. CUMULATIEF ────────────────────────────────────────────────
-            st.markdown("### Registraties per aandrijflijn")
+            st.markdown("### Registraties per brandstoftype")
 
             fig_abs = px.line(
                 df_groep_gefilterd,
@@ -1223,7 +1223,7 @@ with tab3:
                 y="cumulatief",
                 color="categorie",
                 color_discrete_map=kleur_map,
-                labels={"jaar_maand": "Datum", "cumulatief": "Cumulatief aantal voertuigen", "categorie": "Aandrijflijn"},
+                labels={"jaar_maand": "Datum", "cumulatief": "Cumulatief aantal voertuigen", "categorie": "Brandstoftype"},
                 template="plotly_dark",
             )
             fig_abs.update_traces(line=dict(width=2.5))
@@ -1231,7 +1231,7 @@ with tab3:
                 paper_bgcolor="rgba(0,0,0,0)",
                 plot_bgcolor="rgba(15,23,42,1)",
                 font=dict(family="DM Sans", color="#94a3b8"),
-                legend_title="Aandrijflijn",
+                legend_title="Brandstoftype",
                 xaxis_title="Datum",
                 yaxis_title="Cumulatief aantal",
                 hovermode="x unified",
@@ -1245,7 +1245,7 @@ with tab3:
             st.divider()
 
             # ── 2. VERHOUDING ────────────────────────────────────────────────
-            st.markdown("### Aandeel per aandrijflijn")
+            st.markdown("### Aandeel per Brandstoftype")
 
             fig_aandeel = px.line(
                 df_groep_gefilterd,
@@ -1253,7 +1253,7 @@ with tab3:
                 y="percentage",
                 color="categorie",
                 color_discrete_map=kleur_map,
-                labels={"jaar_maand": "Datum", "percentage": "Aandeel (%)", "categorie": "Aandrijflijn"},
+                labels={"jaar_maand": "Datum", "percentage": "Aandeel (%)", "categorie": "Brandstoftype"},
                 template="plotly_dark",
             )
             fig_aandeel.update_traces(line=dict(width=2.5))
@@ -1261,7 +1261,7 @@ with tab3:
                 paper_bgcolor="rgba(0,0,0,0)",
                 plot_bgcolor="rgba(15,23,42,1)",
                 font=dict(family="DM Sans", color="#94a3b8"),
-                legend_title="Aandrijflijn",
+                legend_title="Brandstoftype",
                 xaxis_title="Datum",
                 yaxis_title="Aandeel van lopend bestand (%)",
                 hovermode="x unified",
@@ -1366,7 +1366,7 @@ with tab3:
                 labels={
                     "jaar_maand": "Datum",
                     "percentage": "Aandeel (%)",
-                    "categorie":  "Aandrijflijn",
+                    "categorie":  "Brandstoftype",
                     "type":       "Type",
                 },
                 template="plotly_dark",
@@ -1410,7 +1410,7 @@ with tab3:
                 paper_bgcolor="rgba(0,0,0,0)",
                 plot_bgcolor="rgba(15,23,42,1)",
                 font=dict(family="DM Sans", color="#94a3b8"),
-                legend_title="Aandrijflijn",
+                legend_title="Brandstoftype",
                 xaxis_title="Datum",
                 yaxis_title="Aandeel van wagenpark (%)",
                 hovermode="x unified",
