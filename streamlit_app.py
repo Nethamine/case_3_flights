@@ -1275,7 +1275,7 @@ with tab3:
             st.divider()
 
             # ── 3. VOORSPELLING ──────────────────────────────────────────────
-            st.markdown("###  Voorspelling verhouding tot 2050")
+            st.markdown("###  Voorspelling tot 2050 voor de brandstofsoort")
 
             elek = df_groep[df_groep["categorie"] == "🔋 Volledig elektrisch"].copy()
             elek = elek[elek["jaar_maand"] >= pd.Timestamp("2018-01-01")]
