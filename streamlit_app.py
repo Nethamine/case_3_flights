@@ -1395,7 +1395,7 @@ with tab3:
                 (df_ratio["categorie"] == "🔋 Volledig elektrisch") &
                 (df_ratio["type"] == "Voorspelling")
             ]
-            for drempel in [10, 25, 50, 75]:
+            for drempel in [10, 25, 50, 75, 100]:
                 bereikt = elek_pred[elek_pred["percentage"] >= drempel]
                 if not bereikt.empty:
                     datum = bereikt["jaar_maand"].min()
