@@ -514,6 +514,32 @@ with tab1:
 
     st.divider()
 
+    # Legenda uitleg
+    st.markdown("""
+    <div style="display:flex; gap:24px; margin-bottom:16px; flex-wrap:wrap;">
+        <div style="display:flex; align-items:center; gap:8px;">
+            <div style="width:14px; height:14px; border-radius:50%; background:#94a3b8;"></div>
+            <span style="font-size:12px; color:#94a3b8; font-family:'Space Mono',monospace;">Onbekend</span>
+        </div>
+        <div style="display:flex; align-items:center; gap:8px;">
+            <div style="width:14px; height:14px; border-radius:50%; background:#60a5fa;"></div>
+            <span style="font-size:12px; color:#94a3b8; font-family:'Space Mono',monospace;">Langzaam &lt; 22 kW</span>
+        </div>
+        <div style="display:flex; align-items:center; gap:8px;">
+            <div style="width:14px; height:14px; border-radius:50%; background:#facc15;"></div>
+            <span style="font-size:12px; color:#94a3b8; font-family:'Space Mono',monospace;">Snel 22–100 kW</span>
+        </div>
+        <div style="display:flex; align-items:center; gap:8px;">
+            <div style="width:14px; height:14px; border-radius:50%; background:#f97316;"></div>
+            <span style="font-size:12px; color:#94a3b8; font-family:'Space Mono',monospace;">Supersnel 100–150 kW</span>
+        </div>
+        <div style="display:flex; align-items:center; gap:8px;">
+            <div style="width:14px; height:14px; border-radius:50%; background:#ef4444;"></div>
+            <span style="font-size:12px; color:#94a3b8; font-family:'Space Mono',monospace;">Ultrasnel &gt; 150 kW</span>
+        </div>
+    </div>
+    """, unsafe_allow_html=True)
+
     if len(filtered_df) == 0:
         st.warning("Geen laadpalen gevonden voor deze selectie.")
     else:
@@ -526,13 +552,29 @@ with tab1:
                                'AddressInfo_Town', 'Provincie',
                                'Connections_0_PowerKW']].copy()
         map_df.columns = ['lat', 'lon', 'title', 'address', 'town', 'provincie', 'power']
+        map_df['power_num'] = pd.to_numeric(map_df['power'], errors='coerce')
+
+        def power_color(kw):
+            if pd.isna(kw):
+                return [148, 163, 184, 200]   # grijs — onbekend
+            elif kw < 22:
+                return [96, 165, 250, 220]    # blauw — langzaam
+            elif kw < 100:
+                return [250, 204, 21, 220]    # geel — snel
+            elif kw < 150:
+                return [249, 115, 22, 220]    # oranje — supersnel
+            else:
+                return [239, 68, 68, 220]     # rood — ultrasnel
+
+        map_df['color'] = map_df['power_num'].apply(power_color)
+        map_df['power'] = map_df['power'].fillna('N/A')
         map_df = map_df.fillna('N/A')
 
         scatter_layer = pdk.Layer(
             "ScatterplotLayer",
             data=map_df,
             get_position='[lon, lat]',
-            get_fill_color='[34, 197, 94, 200]',
+            get_fill_color='color',
             get_radius=5,
             radius_min_pixels=4,
             radius_max_pixels=12,
