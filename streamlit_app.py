@@ -1023,124 +1023,56 @@ with tab3:
                 margin=dict(t=20, b=20),
             )
             st.plotly_chart(fig_abs, use_container_width=True)
-            # ── na de bestaande fig_abs plotly_chart ──────────────────────
 
             st.divider()
-            st.markdown("### 🔮 Voorspelling tot 2050")
-            st.markdown("Lineaire regressie op basis van historische maanddata.")
+
+            # ── Voorspelling verhouding tot 2050 ────────────────────────────
+            st.markdown("### 🔮 Voorspelling verhouding tot 2050")
+            st.markdown("Lineaire regressie op de verhouding elektrisch/fossiel, gefit op data vanaf 2024.")
 
             from sklearn.linear_model import LinearRegression
             import numpy as np
 
-            # ── helper: regressie + voorspelling ────────────────────────────
-            def voorspel(df_cat: pd.DataFrame, categorie: str) -> pd.DataFrame:
-                sub = df_cat[(df_cat["categorie"] == categorie) &
-                (df_cat["jaar_maand"] >= pd.Timestamp("2024-01-01")) ].copy()
+            vandaag = pd.Timestamp("today")
+            lijn_stijl = {"Historisch": "solid", "Voorspelling": "dot"}
+
+            def voorspel_ratio(categorie: str) -> pd.DataFrame:
+                sub = df_groep[
+                    (df_groep["categorie"] == categorie) &
+                    (df_groep["jaar_maand"] >= pd.Timestamp("2024-01-01"))
+                ].copy()
                 if sub.empty:
                     return pd.DataFrame()
 
-                # X = maanden sinds eerste datapunt (integer)
                 t0 = sub["jaar_maand"].min()
-                sub["t"] = ((sub["jaar_maand"].dt.year - t0.year) * 12
-                            + (sub["jaar_maand"].dt.month - t0.month))
+                sub["t"] = (
+                    (sub["jaar_maand"].dt.year - t0.year) * 12
+                    + (sub["jaar_maand"].dt.month - t0.month)
+                )
 
                 model = LinearRegression()
-                model.fit(sub[["t"]], sub["cumulatief"])
+                model.fit(sub[["t"]], sub["percentage"])
 
-                # Voorspel tot december 2050
                 t_max = (2050 - t0.year) * 12 + (12 - t0.month)
                 t_toekomst = np.arange(sub["t"].max() + 1, t_max + 1)
-                datums_toekomst = [
-                    t0 + pd.DateOffset(months=int(t)) for t in t_toekomst
-                ]
-                voorspeld = model.predict(t_toekomst.reshape(-1, 1))
-                voorspeld = np.maximum(voorspeld, 0)  # geen negatieve aantallen
+                datums = [t0 + pd.DateOffset(months=int(t)) for t in t_toekomst]
+                voorspeld = np.clip(model.predict(t_toekomst.reshape(-1, 1)), 0, 100)
 
                 return pd.DataFrame({
-                    "jaar_maand": datums_toekomst,
-                    "cumulatief": voorspeld,
+                    "jaar_maand": datums,
+                    "percentage": voorspeld,
                     "categorie":  categorie,
                     "type":       "Voorspelling",
                 })
 
-            # ── combineer historisch + voorspelling ─────────────────────────
-            historisch = df_groep_gefilterd.copy()
-            historisch["type"] = "Historisch"
-
-            frames = [historisch]
+            df_groep["type"] = "Historisch"
+            frames = [df_groep[["jaar_maand", "percentage", "categorie", "type"]]]
             for cat in ["🔋 Volledig elektrisch", "⛽ Fossiel"]:
-                pred = voorspel(df_groep, cat)   # regressie op volledige dataset
+                pred = voorspel_ratio(cat)
                 if not pred.empty:
                     frames.append(pred)
 
-            df_pred = pd.concat(frames, ignore_index=True)
-
-            # ── cumulatief grafiek met voorspelling ──────────────────────────
-            lijn_stijl = {"Historisch": "solid", "Voorspelling": "dot"}
-
-            fig_pred = px.line(
-                df_pred,
-                x="jaar_maand",
-                y="cumulatief",
-                color="categorie",
-                line_dash="type",
-                line_dash_map=lijn_stijl,
-                color_discrete_map=kleur_map,
-                labels={
-                    "jaar_maand": "Datum",
-                    "cumulatief": "Cumulatief aantal voertuigen",
-                    "categorie":  "Aandrijflijn",
-                    "type":       "Type",
-                },
-                template="plotly_dark",
-            )
-            fig_pred.update_traces(line=dict(width=2.5))
-
-            # Verticale lijn op vandaag
-            fig_pred.add_vline(
-                x=pd.Timestamp("today").timestamp() * 1000,
-                line_dash="dash",
-                line_color="#fbbf24",
-                annotation_text="Vandaag",
-                annotation_font_color="#fbbf24",
-                annotation_position="top right",
-            )
-
-            fig_pred.update_layout(
-                paper_bgcolor="rgba(0,0,0,0)",
-                plot_bgcolor="rgba(15,23,42,1)",
-                font=dict(family="DM Sans", color="#94a3b8"),
-                legend_title="Aandrijflijn",
-                xaxis_title="Datum",
-                yaxis_title="Cumulatief aantal",
-                hovermode="x unified",
-                yaxis=dict(gridcolor="#1e293b", tickformat=","),
-                xaxis=dict(gridcolor="#1e293b"),
-                height=460,
-                margin=dict(t=20, b=20),
-            )
-            st.plotly_chart(fig_pred, use_container_width=True)
-
-            st.divider()
-
-            # ── verhouding elektrisch / fossiel voorspelling ─────────────────
-            st.markdown("### ⚖️ Voorspelde verhouding elektrisch vs fossiel")
-
-            # Bereken verhouding op gecombineerde data (historisch + voorspelling)
-            df_ratio = (
-                df_pred
-                .groupby(["jaar_maand", "categorie"])["cumulatief"]
-                .sum()
-                .reset_index()
-            )
-            totaal = df_ratio.groupby("jaar_maand")["cumulatief"].transform("sum")
-            df_ratio["percentage"] = (df_ratio["cumulatief"] / totaal * 100).round(2)
-
-            # Voeg type toe voor stippellijn na vandaag
-            vandaag = pd.Timestamp("today")
-            df_ratio["type"] = df_ratio["jaar_maand"].apply(
-                lambda d: "Historisch" if d <= vandaag else "Voorspelling"
-            )
+            df_ratio = pd.concat(frames, ignore_index=True)
 
             fig_ratio = px.line(
                 df_ratio,
@@ -1160,7 +1092,7 @@ with tab3:
             )
             fig_ratio.update_traces(line=dict(width=2.5))
             fig_ratio.add_vline(
-                x=pd.Timestamp("today").timestamp() * 1000,
+                x=vandaag.timestamp() * 1000,
                 line_dash="dash",
                 line_color="#fbbf24",
                 annotation_text="Vandaag",
@@ -1175,9 +1107,9 @@ with tab3:
                 xaxis_title="Datum",
                 yaxis_title="Aandeel van wagenpark (%)",
                 hovermode="x unified",
-                yaxis=dict(ticksuffix="%", gridcolor="#1e293b"),
+                yaxis=dict(ticksuffix="%", gridcolor="#1e293b", range=[0, 100]),
                 xaxis=dict(gridcolor="#1e293b"),
-                height=420,
+                height=460,
                 margin=dict(t=20, b=20),
             )
             st.plotly_chart(fig_ratio, use_container_width=True)
@@ -1186,34 +1118,27 @@ with tab3:
             st.markdown("### 📅 Voorspelde mijlpalen")
 
             mijlpalen = []
+            elek_pred = df_ratio[
+                (df_ratio["categorie"] == "🔋 Volledig elektrisch") &
+                (df_ratio["type"] == "Voorspelling")
+            ]
             for drempel in [10, 25, 50, 75]:
-                elek = df_ratio[
-                    (df_ratio["categorie"] == "🔋 Volledig elektrisch")
-                    & (df_ratio["percentage"] >= drempel)
-                    & (df_ratio["jaar_maand"] > vandaag)
-                ]
-                if not elek.empty:
-                    datum = elek["jaar_maand"].min()
+                bereikt = elek_pred[elek_pred["percentage"] >= drempel]
+                if not bereikt.empty:
+                    datum = bereikt["jaar_maand"].min()
                     mijlpalen.append({
                         "Mijlpaal": f"{drempel}% elektrisch",
-                        "Voorspeld jaar": datum.year,
                         "Voorspelde maand": datum.strftime("%B %Y"),
                     })
 
             if mijlpalen:
-                df_mijl = pd.DataFrame(mijlpalen)
                 st.dataframe(
-                    df_mijl,
+                    pd.DataFrame(mijlpalen),
                     hide_index=True,
                     use_container_width=True,
-                    column_config={
-                        "Mijlpaal":          st.column_config.TextColumn("Mijlpaal"),
-                        "Voorspeld jaar":    st.column_config.NumberColumn("Jaar", format="%d"),
-                        "Voorspelde maand":  st.column_config.TextColumn("Datum"),
-                    }
                 )
             else:
-                st.info("Geen mijlpalen bereikt binnen de voorspellingsperiode op basis van lineaire regressie.")
+                st.info("50%+ elektrisch wordt niet bereikt vóór 2050 op basis van deze regressie.")
 
             st.markdown("""
             <div style="margin-top:12px; padding:12px 16px; background:#0f172a; border-radius:8px;
@@ -1221,9 +1146,10 @@ with tab3:
                 <span style="color:#fbbf24; font-family:'Space Mono',monospace; font-weight:700;">
                     METHODOLOGIE
                 </span><br><br>
-                Lineaire regressie (OLS) op cumulatieve maandtotalen per categorie vanaf 2005.
-                De stippellijn toont de voorspelling — de doorgaande lijn de historische data.
-                Lineaire regressie houdt geen rekening met beleidsveranderingen, economische schokken
-                of verzadigingseffecten. Gebruik als indicatie, niet als prognose.
+                Lineaire regressie (OLS) op het maandelijkse aandeel per brandstofcategorie,
+                gefit op data vanaf januari 2024. De stippellijn toont de voorspelling —
+                de doorgaande lijn de historische data. Lineaire regressie houdt geen rekening
+                met beleidsveranderingen, economische schokken of verzadigingseffecten.
+                Gebruik als indicatie, niet als prognose.
             </div>
             """, unsafe_allow_html=True)
