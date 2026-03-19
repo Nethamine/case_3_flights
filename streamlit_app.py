@@ -224,25 +224,128 @@ def load_data():
         return df, None
 
 
-@st.cache_data
+@st.cache_data(ttl=86400, show_spinner=False)
 def load_voertuigen():
-    df = pd.read_parquet('rdw_voertuigen.parquet')
+    """
+    Haalt live geaggregeerde voertuigdata op via de RDW Socrata API.
+    
+    Twee datasets:
+      - m9d7-ebf2: kenteken + datum_eerste_toelating
+      - 8ys7-d773: kenteken + brandstof_omschrijving
+    
+    Strategie: haal per brandstofcategorie de counts per maand op
+    via server-side $group queries — geen miljoenen rijen inladen.
+    """
+    BASE    = "https://opendata.rdw.nl/resource"
+    HEADERS = {"User-Agent": "LaadpalenNL-StreamlitApp/1.0"}
 
-    raw = df["datum_eerste_toelating"]
+    CATEGORIEEN = {
+        "🔋 Volledig elektrisch": "upper(brandstof_omschrijving)='ELEKTRICITEIT'",
+        "⛽ Fossiel": (
+            "upper(brandstof_omschrijving) IN("
+            "'BENZINE','DIESEL','LPG','CNG','WATERSTOF','ALCOHOL','OVERIG')"
+        ),
+    }
 
-    if pd.api.types.is_datetime64_any_dtype(raw):
-        df["datum_eerste_toelating"] = raw
-    else:
-        raw_str = raw.astype(str).str.strip()
-        sample = raw_str.dropna().iloc[0] if not raw_str.dropna().empty else ""
-        if len(sample) >= 8 and sample[:8].isdigit() and "-" not in sample[:8]:
-            df["datum_eerste_toelating"] = pd.to_datetime(
-                raw_str.str[:8], format="%Y%m%d", errors="coerce"
-            )
-        else:
-            df["datum_eerste_toelating"] = pd.to_datetime(raw_str, errors="coerce")
+    alle_rijen = []
 
-    df["jaar_maand"] = df["datum_eerste_toelating"].dt.to_period("M").dt.to_timestamp()
+    for label, brandstof_where in CATEGORIEEN.items():
+        # Stap 1: haal alle kentekens op voor deze brandstofcategorie
+        kentekens = set()
+        offset = 0
+        limit  = 50_000
+        while True:
+            try:
+                r = requests.get(
+                    f"{BASE}/8ys7-d773.json",
+                    params={
+                        "$select": "kenteken",
+                        "$where":  brandstof_where,
+                        "$limit":  limit,
+                        "$offset": offset,
+                    },
+                    headers=HEADERS,
+                    timeout=30,
+                )
+                r.raise_for_status()
+                batch = r.json()
+            except Exception:
+                break
+            for row in batch:
+                if "kenteken" in row:
+                    kentekens.add(row["kenteken"])
+            if len(batch) < limit:
+                break
+            offset += limit
+
+        if not kentekens:
+            continue
+
+        # Stap 2: haal per maand de count op voor deze kentekens
+        # via server-side $group in de voertuigen-dataset.
+        # Kentekens in batches van 400 om URL-lengte te respecteren.
+        maand_counts: dict[str, int] = {}
+        kenteken_list = list(kentekens)
+        batch_size    = 400
+
+        for i in range(0, len(kenteken_list), batch_size):
+            chunk     = kenteken_list[i : i + batch_size]
+            in_clause = "','".join(chunk)
+
+            offset2 = 0
+            while True:
+                try:
+                    r2 = requests.get(
+                        f"{BASE}/m9d7-ebf2.json",
+                        params={
+                            "$select": (
+                                "date_trunc_ym(datum_eerste_toelating) AS maand,"
+                                "count(*) AS aantal"
+                            ),
+                            "$where": (
+                                f"datum_eerste_toelating >= '2005-01-01T00:00:00'"
+                                f" AND kenteken IN('{in_clause}')"
+                            ),
+                            "$group":  "maand",
+                            "$order":  "maand ASC",
+                            "$limit":  50_000,
+                            "$offset": offset2,
+                        },
+                        headers=HEADERS,
+                        timeout=30,
+                    )
+                    r2.raise_for_status()
+                    batch2 = r2.json()
+                except Exception:
+                    break
+
+                for row in batch2:
+                    maand  = row.get("maand", "")
+                    aantal = int(row.get("aantal", 0))
+                    maand_counts[maand] = maand_counts.get(maand, 0) + aantal
+
+                if len(batch2) < 50_000:
+                    break
+                offset2 += 50_000
+
+        for maand, aantal in maand_counts.items():
+            alle_rijen.append({
+                "datum_eerste_toelating": maand,
+                "brandstof_omschrijving": label,
+                "aantal":                aantal,
+            })
+
+    if not alle_rijen:
+        return pd.DataFrame(
+            columns=["datum_eerste_toelating", "brandstof_omschrijving", "aantal"]
+        )
+
+    df = pd.DataFrame(alle_rijen)
+    df["aantal"] = pd.to_numeric(df["aantal"], errors="coerce").fillna(0).astype(int)
+    df["datum_eerste_toelating"] = pd.to_datetime(
+        df["datum_eerste_toelating"], errors="coerce"
+    )
+    df = df.dropna(subset=["datum_eerste_toelating"])
     return df
 
 
@@ -852,28 +955,16 @@ with tab3:
     st.markdown("### Aandeel voertuigen per aandrijflijn")
     st.markdown("Cumulatief aandeel van het Nederlandse wagenpark per brandstofcategorie over de tijd.")
 
-    def categoriseer_brandstof(brandstof):
-        if pd.isna(brandstof) or brandstof is None:
-            return None
-        b = str(brandstof).strip().lower()
-        if b == "elektriciteit":
-            return "🔋 Volledig elektrisch"
-        elif b in ["benzine", "diesel", "lpg", "cng", "waterstof", "alcohol", "overig"]:
-            return "⛽ Fossiel"
-        else:
-            return None
+    # Data komt nu al geaggregeerd binnen (aantal per maand per categorie)
+    df_cat = df_voer.copy()
+    df_cat = df_cat.rename(columns={
+        "datum_eerste_toelating": "jaar_maand",
+        "brandstof_omschrijving": "categorie",
+    })
+    df_cat = df_cat[df_cat["categorie"].notna()]
+    df_cat = df_cat[df_cat["jaar_maand"] >= pd.Timestamp("2005-01-01")]
 
-    df_voer["categorie"] = df_voer["brandstof_omschrijving"].apply(categoriseer_brandstof)
-    df_cat = df_voer[df_voer["categorie"].notna()].copy()
-    df_cat = df_cat[df_cat["jaar_maand"] >= "2005-01-01"]
-
-    df_groep = (
-        df_cat
-        .groupby(["jaar_maand", "categorie"])
-        .size()
-        .reset_index(name="aantal")
-        .sort_values("jaar_maand")
-    )
+    df_groep = df_cat.sort_values("jaar_maand").copy()
     df_groep["cumulatief"] = df_groep.groupby("categorie")["aantal"].cumsum()
 
     totaal_per_maand = df_groep.groupby("jaar_maand")["cumulatief"].transform("sum")
