@@ -1161,33 +1161,7 @@ with tab3:
     kleur_map = {
         "🔋 Volledig elektrisch": "#22c55e",
         "⛽ Fossiel":              "#64748b",
-    }
-# ── vooringestelde periodes ──────────────────────────────────────
-    periode_opties = {
-            "Alles":        alle_maanden[0],
-            "Laatste 10 jaar": pd.Timestamp(f"{pd.Timestamp('today').year - 10}-01-01"),
-            "Laatste 5 jaar":  pd.Timestamp(f"{pd.Timestamp('today').year - 5}-01-01"),
-            "Laatste 2 jaar":  pd.Timestamp(f"{pd.Timestamp('today').year - 2}-01-01"),
-        }
-
-    col_periode, col_leeg = st.columns([1, 3])
-    with col_periode:
-            gekozen_periode = st.selectbox(
-                "Snelle selectie:",
-                options=list(periode_opties.keys()),
-                index=0,
-            )
-
-        # Pas slider startwaarde aan op basis van selectbox
-    start_default = periode_opties[gekozen_periode]
-    start_default = max(start_default, alle_maanden[0])  # niet voor eerste datapunt
-
-    geselecteerde_maanden = st.select_slider(
-            "Selecteer tijdsbereik:",
-            options=alle_maanden,
-            value=(start_default, alle_maanden[-1]),
-            format_func=lambda x: pd.Timestamp(x).strftime("%b %Y"),
-        )    
+    }    
     if df_groep.empty:
         st.warning("Geen voertuigdata beschikbaar.")
     else:
