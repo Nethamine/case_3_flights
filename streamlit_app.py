@@ -848,7 +848,6 @@ with tab2:
 
 # ==================== TAB 3: VOERTUIGREGISTRATIES ====================
 with tab3:
-    import plotly.express as px
 
     st.markdown('<div class="algo-badge">RDW OPEN DATA</div>', unsafe_allow_html=True)
     st.markdown("### Aandeel voertuigen per aandrijflijn")
@@ -957,7 +956,7 @@ with tab3:
         (df_groep_jaar["jaar_maand"] >= start_dt) &
         (df_groep_jaar["jaar_maand"] <= eind_dt)
     ]
-    if df_groep.empty:
+    if df_groep_gefilterd.empty:
         st.warning("Geen data beschikbaar.")
     else:
         fig_aandeel = px.line(
